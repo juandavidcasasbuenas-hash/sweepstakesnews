@@ -12,6 +12,8 @@ export const emptyResults: TournamentResults = {
 };
 
 let localResults = emptyResults;
+let lastProviderCallMs = 0;
+const MIN_PROVIDER_INTERVAL_MS = 15_000;
 
 type ResultsRead = {
   mode: "local" | "supabase";
@@ -253,6 +255,12 @@ async function fetchJson(url: string, init?: RequestInit) {
 }
 
 export async function fetchResultsFromProvider(request: Request) {
+  const now = Date.now();
+  if (now - lastProviderCallMs < MIN_PROVIDER_INTERVAL_MS) {
+    throw new Error(`Results provider called too frequently — wait ${Math.ceil((MIN_PROVIDER_INTERVAL_MS - (now - lastProviderCallMs)) / 1000)}s`);
+  }
+  lastProviderCallMs = now;
+
   const url = new URL(request.url);
   if (url.searchParams.get("sample") === "1") {
     return sampleResults();
