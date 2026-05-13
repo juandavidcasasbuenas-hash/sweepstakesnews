@@ -1,0 +1,66 @@
+# Sweepstakes News
+
+World Cup 2026 sweepstakes web app for predicting every match score before the first kick-off.
+
+## Run locally
+
+```bash
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000`.
+
+## Data model
+
+- Fixtures are seeded from `openfootball/worldcup.json` in `src/data/fixtures.ts`.
+- The app follows the 2026 format: 12 groups of four, top two plus the eight best third-placed teams into the Round of 32.
+- Knockout placeholders are resolved from each player's predicted group tables, then winners advance through the tree.
+- The old spreadsheet scoring model is adapted in `src/lib/tournament.ts`.
+- Format references: FIFA's 2026 format FAQ and the FIFA World Cup 26 regulations, Articles 12 and 13.
+
+## Deployment persistence
+
+Without a database, the app works as a local browser demo only. Players on different devices will not see each other because Vercel serverless functions do not provide shared persistent storage.
+
+For the real game, create a Supabase project and run `supabase-schema.sql`, then set:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+CRON_SECRET=
+ADMIN_RESULTS_KEY=
+WC2026_API_KEY=
+RESULTS_CACHE_SECONDS=90
+```
+
+## Results syncing
+
+The cron route is configured in `vercel.json` as a daily safety refresh:
+
+```text
+/api/cron/update-results
+```
+
+Vercel Hobby only supports daily cron jobs. The leaderboard uses `/api/results/live`
+to refresh on demand and cache provider calls in Supabase, so it can still feel live
+without frequent cron. On Vercel Pro, you can change the cron schedule to a more
+frequent cadence such as `*/5 * * * *`.
+
+It supports three provider paths:
+
+- `WC2026_API_KEY`: uses the World Cup 2026 API. Override the URL with `WC2026_API_URL` if needed.
+- `RESULTS_API_URL`: any JSON endpoint returning `{ "matches": [{ "fixtureId": 1, "home": 2, "away": 0, "team1": "Mexico", "team2": "South Africa", "winner": "Mexico" }] }`
+- `API_FOOTBALL_KEY`: uses API-Football-style fixture payloads. Override the URL with `API_FOOTBALL_URL` if their World Cup league/season endpoint changes.
+
+Local test paths:
+
+```bash
+curl "http://localhost:3000/api/cron/update-results?sample=1"
+curl "http://localhost:3000/api/results/live?test=1&refresh=1"
+```
+
+The sample path seeds deterministic sample results. The test path calls the
+WC2026 sandbox match endpoint and maps it onto fixture 1 so the leaderboard
+pipeline can be checked before real World Cup matches are available.

@@ -1,0 +1,17 @@
+.env*
+!.env.example
+openAI.txt
+openai.txt
+
+.next/
+node_modules/
+
+.DS_Store
+*.tsbuildinfo
+
+test_imagegen.py
+generate_hero.py
+test_output.png
+hero_banner.png
+featureimage.jpg
+World Cup Russia 2018 Sweepstakes MASTER.xlsb
