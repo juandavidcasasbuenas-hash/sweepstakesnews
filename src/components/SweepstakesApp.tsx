@@ -239,6 +239,37 @@ function matchPickClass(pick?: MatchPick, result?: TournamentResults["matches"][
   return pickDirection === resultDirection ? " direction" : " missed";
 }
 
+function scoreMatchPick(
+  pick: MatchPick | undefined,
+  result: TournamentResults["matches"][number] | undefined,
+  fixture: ResolvedFixture,
+): number {
+  if (!pick || !result || typeof pick.home !== "number" || typeof pick.away !== "number") {
+    return 0;
+  }
+  const pH = Number(pick.home);
+  const pA = Number(pick.away);
+  let pts = 0;
+  if (fixture.stage === "group") {
+    if (Math.sign(pH - pA) === Math.sign(result.home - result.away)) pts += scoringRules.groupResult;
+    if (pH === result.home) pts += scoringRules.groupTeamGoals;
+    if (pA === result.away) pts += scoringRules.groupTeamGoals;
+    if (pH - pA === result.home - result.away) pts += scoringRules.groupGoalDifferencePerTeam * 2;
+    if (pH === result.home && pA === result.away) pts += scoringRules.groupExactBonus;
+  } else {
+    const pickWinner =
+      pH > pA ? fixture.resolvedTeam1 :
+      pA > pH ? fixture.resolvedTeam2 :
+      (pick.winner ?? fixture.resolvedTeam1);
+    if (result.winner && pickWinner === result.winner) pts += scoringRules.knockoutWinner;
+    if (pH === result.home) pts += scoringRules.knockoutTeamGoals;
+    if (pA === result.away) pts += scoringRules.knockoutTeamGoals;
+    if (pH - pA === result.home - result.away) pts += scoringRules.knockoutGoalDifference;
+    if (pH === result.home && pA === result.away) pts += scoringRules.knockoutExactBonus;
+  }
+  return pts;
+}
+
 function finalSummary(submission: Submission) {
   const resolved = resolveFixtures(submission.picks);
   const final = resolved.find((fixture) => fixture.id === 104);
@@ -940,8 +971,8 @@ function Leaderboard({
               <span>
                 <strong>{row.submission.name}</strong>
                 <small>
-                  {row.submission.id === ownSubmissionId ? "Your entry - " : ""}
-                  {row.score.exacts} exact scores
+                  {row.submission.id === ownSubmissionId ? "Your entry · " : ""}
+                  Groups {row.score.groupMatches + row.score.qualification} · KO {row.score.knockoutMatches + row.score.placements} · Bonus {row.score.bonuses}
                 </small>
               </span>
               <b>{row.score.total}</b>
@@ -1015,7 +1046,7 @@ function MatchDayView({
             >
               <strong>{dateLabel}</strong>
               <span>
-                {dayFixtures.length} match{dayFixtures.length === 1 ? "" : "es"} · {completed} live
+                {dayFixtures.length} match{dayFixtures.length === 1 ? "" : "es"}{completed > 0 ? ` · ${completed} results in` : ""}
               </span>
             </button>
           );
@@ -1025,63 +1056,85 @@ function MatchDayView({
       {submissions.length === 0 ? (
         <p className="muted">No confirmed entries yet.</p>
       ) : (
-        <div className="matchday-fixtures">
-          {activeFixtures.map((fixture) => {
-            const result = results.matches[fixture.id];
-            const rows = submissions
-              .map((submission) => {
-                const resolved = resolveFixtures(submission.picks).find((item) => item.id === fixture.id) ?? fixture;
-                return { submission, fixture: resolved, pick: submission.picks[fixture.id] };
-              })
-              .sort((a, b) => a.submission.name.localeCompare(b.submission.name));
+        <>
+          <div className="legend-strip" aria-label="Pick result key">
+            <span className="legend-dot exact" aria-hidden="true" />
+            <span className="legend-label">Exact score</span>
+            <span className="legend-dot direction" aria-hidden="true" />
+            <span className="legend-label">Right result</span>
+            <span className="legend-dot missed" aria-hidden="true" />
+            <span className="legend-label">Missed</span>
+            <span className="legend-pts-note">Points shown per pick →</span>
+          </div>
+          <div className="matchday-fixtures">
+            {activeFixtures.map((fixture) => {
+              const result = results.matches[fixture.id];
+              const rows = submissions
+                .map((submission) => {
+                  const resolved = resolveFixtures(submission.picks).find((item) => item.id === fixture.id) ?? fixture;
+                  return { submission, fixture: resolved, pick: submission.picks[fixture.id] };
+                })
+                .sort((a, b) => a.submission.name.localeCompare(b.submission.name));
 
-            return (
-              <article className="matchday-fixture" key={fixture.id}>
-                <div className="matchday-fixture-head">
-                  <div>
+              return (
+                <article className="matchday-fixture" key={fixture.id}>
+                  <div className="matchday-fixture-head">
                     <div className="fixture-meta">
                       <span className="match-chip">M{fixture.id}</span>
                       <span>{fixture.round}</span>
                       <span className="venue-chip">{fixture.time}</span>
+                      <span className={`result-pill${result ? " result-pill-in" : ""}`}>
+                        {result ? resultOutcome(result) : "Upcoming"}
+                      </span>
                     </div>
-                    <div className="matchday-scoreboard">
-                      <ScoreTeamLabel
-                        team={result?.team1 ?? fixture.resolvedTeam1}
-                        goals={result?.home}
-                      />
-                      <ScoreTeamLabel
-                        team={result?.team2 ?? fixture.resolvedTeam2}
-                        goals={result?.away}
-                      />
+                    <div className="match-scoreline">
+                      <div className="scoreline-home">
+                        <TeamLabel team={result?.team1 ?? fixture.resolvedTeam1} />
+                      </div>
+                      <div className="scoreline-box">
+                        <b>{result != null ? result.home : "·"}</b>
+                        <span>—</span>
+                        <b>{result != null ? result.away : "·"}</b>
+                      </div>
+                      <div className="scoreline-away">
+                        <TeamLabel team={result?.team2 ?? fixture.resolvedTeam2} />
+                      </div>
                     </div>
                   </div>
-                  <div className={`matchday-result${result ? " live" : ""}`}>
-                    <span>{result ? "Live result" : "No result yet"}</span>
-                    <strong>{resultOutcome(result)}</strong>
-                  </div>
-                </div>
 
-                <div className="matchday-picks">
-                  {rows.map(({ submission, fixture: resolved, pick }) => (
-                    <div
-                      className={`matchday-pick${matchPickClass(pick, result)}${submission.id === ownSubmissionId ? " own-row" : ""}`}
-                      key={submission.id}
-                    >
-                      <span>
-                        <strong>{submission.name}</strong>
-                        <small>{submission.id === ownSubmissionId ? "Your entry" : pickOutcome(pick)}</small>
-                      </span>
-                      <span className="matchday-teams">
-                        <ScoreTeamLabel team={resolved.resolvedTeam1} goals={pick?.home} />
-                        <ScoreTeamLabel team={resolved.resolvedTeam2} goals={pick?.away} />
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </article>
-            );
-          })}
-        </div>
+                  <div className="matchday-picks">
+                    {rows.map(({ submission, fixture: resolved, pick }) => {
+                      const pickClass = matchPickClass(pick, result);
+                      const pts = result ? scoreMatchPick(pick, result, resolved) : null;
+                      return (
+                        <div
+                          className={`matchday-pick${pickClass}${submission.id === ownSubmissionId ? " own-row" : ""}`}
+                          key={submission.id}
+                        >
+                          <span>
+                            <strong>{submission.name}</strong>
+                            <small>{submission.id === ownSubmissionId ? "Your entry" : pickOutcome(pick)}</small>
+                          </span>
+                          <span className="matchday-teams">
+                            <ScoreTeamLabel team={resolved.resolvedTeam1} goals={pick?.home} />
+                            <ScoreTeamLabel team={resolved.resolvedTeam2} goals={pick?.away} />
+                          </span>
+                          {pts !== null ? (
+                            <span className={`pts-badge${pickClass}`} aria-label={`${pts} points`}>
+                              +{pts}<small>pts</small>
+                            </span>
+                          ) : (
+                            <span className="pts-badge pts-badge-pending" aria-hidden="true">—</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </>
       )}
     </section>
   );
@@ -1186,17 +1239,17 @@ function EntryExplorer({
             <article className="entry-mini-card">
               <span>Total points</span>
               <strong>{score.total}</strong>
-              <small>{score.exacts} exact scores</small>
+              <small>{score.exacts} exact score{score.exacts !== 1 ? "s" : ""}</small>
             </article>
             <article className="entry-mini-card">
               <span>Groups</span>
               <strong>{score.groupMatches + score.qualification}</strong>
-              <small>matches and qualifiers</small>
+              <small>{score.groupMatches} match pts · {score.qualification} qualification</small>
             </article>
             <article className="entry-mini-card">
               <span>Knockout</span>
               <strong>{score.knockoutMatches + score.placements}</strong>
-              <small>winners and progression</small>
+              <small>{score.knockoutMatches} match pts · {score.placements} progression</small>
             </article>
             <div className="entry-bonus-row">
               <TeamPill>Top scorer · {selectedSubmission.bonuses.topScorer || "TBC"}</TeamPill>
@@ -2199,22 +2252,44 @@ export default function SweepstakesApp() {
                     <h2>Scoring</h2>
                   </div>
                 </div>
-                <div className="rules-grid">
-                  <div>
-                    <h3>Group matches</h3>
-                    <p>Result {scoringRules.groupResult}, each exact team goal {scoringRules.groupTeamGoals}, goal difference {scoringRules.groupGoalDifferencePerTeam * 2}, exact bonus {scoringRules.groupExactBonus}.</p>
+                <div className="rules-sections">
+                  <div className="rules-section">
+                    <div className="rules-section-title">Group stage</div>
+                    <div className="rules-row"><span>Correct result (W / D / L)</span><b>+{scoringRules.groupResult}</b></div>
+                    <div className="rules-row"><span>Exact home goals</span><b>+{scoringRules.groupTeamGoals}</b></div>
+                    <div className="rules-row"><span>Exact away goals</span><b>+{scoringRules.groupTeamGoals}</b></div>
+                    <div className="rules-row"><span>Exact goal difference</span><b>+{scoringRules.groupGoalDifferencePerTeam * 2}</b></div>
+                    <div className="rules-row"><span>Exact score bonus</span><b>+{scoringRules.groupExactBonus}</b></div>
+                    <div className="rules-row rules-row-max"><span>Max per match</span><b>{scoringRules.groupResult + scoringRules.groupTeamGoals * 2 + scoringRules.groupGoalDifferencePerTeam * 2 + scoringRules.groupExactBonus}</b></div>
                   </div>
-                  <div>
-                    <h3>2026 progression</h3>
-                    <p>Round-of-32 team {scoringRules.round32Qualification}, exact group position {scoringRules.exactGroupPosition}, one-place miss {scoringRules.nearGroupPosition}.</p>
+                  <div className="rules-section">
+                    <div className="rules-section-title">Knockout stage</div>
+                    <div className="rules-row"><span>Correct winner</span><b>+{scoringRules.knockoutWinner}</b></div>
+                    <div className="rules-row"><span>Exact home goals</span><b>+{scoringRules.knockoutTeamGoals}</b></div>
+                    <div className="rules-row"><span>Exact away goals</span><b>+{scoringRules.knockoutTeamGoals}</b></div>
+                    <div className="rules-row"><span>Exact goal difference</span><b>+{scoringRules.knockoutGoalDifference}</b></div>
+                    <div className="rules-row"><span>Exact score bonus</span><b>+{scoringRules.knockoutExactBonus}</b></div>
+                    <div className="rules-row rules-row-max"><span>Max per match</span><b>{scoringRules.knockoutWinner + scoringRules.knockoutTeamGoals * 2 + scoringRules.knockoutGoalDifference + scoringRules.knockoutExactBonus}</b></div>
                   </div>
-                  <div>
-                    <h3>Knockout</h3>
-                    <p>Winner {scoringRules.knockoutWinner}, exact goals {scoringRules.knockoutTeamGoals} each, goal difference {scoringRules.knockoutGoalDifference}, exact bonus {scoringRules.knockoutExactBonus}.</p>
+                  <div className="rules-section">
+                    <div className="rules-section-title">Qualification</div>
+                    <div className="rules-row"><span>Round-of-32 team correct</span><b>+{scoringRules.round32Qualification}</b></div>
+                    <div className="rules-row"><span>Exact group finish position</span><b>+{scoringRules.exactGroupPosition}</b></div>
+                    <div className="rules-row"><span>One-place miss</span><b>+{scoringRules.nearGroupPosition}</b></div>
                   </div>
-                  <div>
-                    <h3>Big calls</h3>
-                    <p>QF {scoringRules.quarterFinalist}, SF {scoringRules.semiFinalist}, finalist {scoringRules.finalist}, champion {scoringRules.champion}, top scorer {scoringRules.topScorer}.</p>
+                  <div className="rules-section">
+                    <div className="rules-section-title">Deep run bonuses</div>
+                    <div className="rules-row"><span>Quarter-finalist</span><b>+{scoringRules.quarterFinalist}</b></div>
+                    <div className="rules-row"><span>Semi-finalist</span><b>+{scoringRules.semiFinalist}</b></div>
+                    <div className="rules-row"><span>Finalist</span><b>+{scoringRules.finalist}</b></div>
+                    <div className="rules-row"><span>Champion</span><b>+{scoringRules.champion}</b></div>
+                    <div className="rules-row"><span>Runner-up</span><b>+{scoringRules.runnerUp}</b></div>
+                  </div>
+                  <div className="rules-section">
+                    <div className="rules-section-title">Bonus picks</div>
+                    <div className="rules-row"><span>Top scorer</span><b>+{scoringRules.topScorer}</b></div>
+                    <div className="rules-row"><span>Golden ball</span><b>+{scoringRules.goldenBall}</b></div>
+                    <div className="rules-row"><span>Most goals (team)</span><b>+{scoringRules.mostGoalsTeam}</b></div>
                   </div>
                 </div>
                 <div className="source-note">
