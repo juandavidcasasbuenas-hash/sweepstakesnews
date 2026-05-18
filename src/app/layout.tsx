@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
-import { Archivo, Barlow_Condensed } from "next/font/google";
+import { Merriweather, Oswald } from "next/font/google";
 import "./globals.css";
 
-const archivo = Archivo({
+const merriweather = Merriweather({
   subsets: ["latin"],
+  weight: ["300", "400", "700", "900"],
   variable: "--font-body",
 });
 
-const barlowCondensed = Barlow_Condensed({
+const oswald = Oswald({
   subsets: ["latin"],
-  weight: ["600", "700", "800"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-display",
 });
 
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${archivo.variable} ${barlowCondensed.variable}`}>
+    <html lang="en" className={`${merriweather.variable} ${oswald.variable}`}>
       <body>{children}</body>
     </html>
   );

@@ -1832,26 +1832,26 @@ export default function SweepstakesApp() {
 
   const heroData: Record<Tab, { eyebrow: string; h1: string; subtitle: string }> = {
     predict: {
-      eyebrow: hasSubmittedEntry ? "Entry locked" : "World Cup 2026 · Sweepstakes",
-      h1: hasSubmittedEntry ? "My\nEntry" : "Predict\nMatches",
+      eyebrow: hasSubmittedEntry ? "■ Entry confirmed · World Cup 2026" : "■ Exclusive · World Cup 2026",
+      h1: hasSubmittedEntry ? "Your\nPicks" : "Predict\nAll 104",
       subtitle: hasSubmittedEntry
-        ? "Your team is in. Track the leaderboard and browse the other calls."
-        : "Pick scores for all 104 matches. The bracket builds itself.",
+        ? "Your entry is locked and loaded. The table doesn't lie — check the leaderboard."
+        : "Call every score. All 104 matches. Build your bracket. Who dares, wins.",
     },
     leaderboard: {
-      eyebrow: "Live standings",
+      eyebrow: "■ Live standings · Updated every minute",
       h1: "The\nTable",
-      subtitle: "Updated as results come in. Who called it right?",
+      subtitle: "The numbers don't lie. Results in, points updated, bragging rights on the line.",
     },
     matchday: {
-      eyebrow: "Fixture room",
+      eyebrow: "■ Fixture by fixture · Live comparisons",
       h1: "Match\nDays",
-      subtitle: "Compare every prediction for the selected day against live results.",
+      subtitle: "Every pick, every player, every match — stacked against the actual result.",
     },
     rules: {
-      eyebrow: "How it works",
-      h1: "Scoring\nRules",
-      subtitle: "Points for exact scores, results, progression, and bonuses.",
+      eyebrow: "■ How to win",
+      h1: "Scoring\nSystem",
+      subtitle: "Exact scores, correct results, deep runs, bonus picks — every point explained.",
     },
   };
   const activeHero = heroData[tab];
