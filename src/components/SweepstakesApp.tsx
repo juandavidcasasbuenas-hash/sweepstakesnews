@@ -1933,18 +1933,6 @@ export default function SweepstakesApp() {
             <div className="hero-context">{activeHero.eyebrow}</div>
             <h1>{activeHero.h1}</h1>
             <p>{activeHero.subtitle}</p>
-            {tab === "predict" && (
-              <div className="hero-actions">
-                {canReview && (
-                  <button
-                    className="primary-button"
-                    onClick={() => setReviewing(true)}
-                  >
-                    Review entry
-                  </button>
-                )}
-              </div>
-            )}
           </div>
         </section>
 
