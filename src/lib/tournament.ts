@@ -277,30 +277,22 @@ export function createEmptyPicks() {
   ) as Record<number, MatchPick>;
 }
 
-function seededGoals(seedA: number, seedB: number, id: number) {
-  const baseA = Math.max(0, Math.min(4, 2 + Math.sign(seedB - seedA)));
-  const baseB = Math.max(0, Math.min(3, 1 + Math.sign(seedA - seedB)));
-  const jitterA = (id * 7 + seedA) % 2;
-  const jitterB = (id * 5 + seedB) % 2;
-  return [Math.max(0, baseA - jitterB), Math.max(0, baseB + jitterA - 1)];
+function randomGoal(): number {
+  const r = Math.random();
+  if (r < 0.22) return 0;
+  if (r < 0.52) return 1;
+  if (r < 0.78) return 2;
+  if (r < 0.93) return 3;
+  return 4;
 }
 
 export function autofillTournament(existing: Record<number, MatchPick>) {
   const picks = structuredClone(existing);
-  const teamSeeds = new Map<string, number>();
-  groupTeams().forEach(({ teams }) =>
-    teams.forEach((team, index) => teamSeeds.set(team, index)),
-  );
 
   for (const fixture of groupFixtures()) {
     const current = picks[fixture.id];
     if (scoreComplete(current)) continue;
-    const [home, away] = seededGoals(
-      teamSeeds.get(fixture.team1) ?? 2,
-      teamSeeds.get(fixture.team2) ?? 2,
-      fixture.id,
-    );
-    picks[fixture.id] = { fixtureId: fixture.id, home, away };
+    picks[fixture.id] = { fixtureId: fixture.id, home: randomGoal(), away: randomGoal() };
   }
 
   for (const fixture of resolveFixtures(picks).filter(
@@ -308,14 +300,8 @@ export function autofillTournament(existing: Record<number, MatchPick>) {
   )) {
     const current = picks[fixture.id];
     if (scoreComplete(current)) continue;
-    const seedA = teamSeeds.get(fixture.resolvedTeam1) ?? 4;
-    const seedB = teamSeeds.get(fixture.resolvedTeam2) ?? 4;
-    let home = seedA <= seedB ? 2 : 1;
-    let away = seedA <= seedB ? 1 : 2;
-    if ((fixture.id + seedA + seedB) % 5 === 0) {
-      home = 1;
-      away = 1;
-    }
+    const home = randomGoal();
+    const away = randomGoal();
     picks[fixture.id] = {
       fixtureId: fixture.id,
       home,
