@@ -13,6 +13,7 @@ export const emptyResults: TournamentResults = {
 
 let localResults = emptyResults;
 let lastProviderCallMs = 0;
+let inFlightProviderCall: Promise<TournamentResults> | null = null;
 const MIN_PROVIDER_INTERVAL_MS = 15_000;
 
 type ResultsRead = {
@@ -193,29 +194,6 @@ export function normalizeGenericJson(payload: unknown): TournamentResults {
   };
 }
 
-export function normalizeWc2026TestMatch(payload: unknown): TournamentResults {
-  const result = resultFromRow(payload);
-  const fixtureId = Number(process.env.WC2026_TEST_FIXTURE_ID ?? 1);
-  const fixture = fixtures.find((item) => item.id === fixtureId) ?? fixtures[0];
-  const matches: Record<number, ResultMatch> = {};
-
-  if (result && fixture) {
-    matches[fixture.id] = {
-      ...result,
-      fixtureId: fixture.id,
-      team1: fixture.team1,
-      team2: fixture.team2,
-      winner: undefined,
-    };
-  }
-
-  return {
-    matches,
-    bonuses: emptyBonuses(),
-    updatedAt: new Date().toISOString(),
-  };
-}
-
 export function normalizeApiFootball(payload: unknown): TournamentResults {
   const rows = rowsFromPayload(payload) as ApiFootballRow[];
   const matches: Record<number, ResultMatch> = {};
@@ -254,28 +232,7 @@ async function fetchJson(url: string, init?: RequestInit) {
   return response.json();
 }
 
-export async function fetchResultsFromProvider(request: Request) {
-  const now = Date.now();
-  if (now - lastProviderCallMs < MIN_PROVIDER_INTERVAL_MS) {
-    throw new Error(`Results provider called too frequently — wait ${Math.ceil((MIN_PROVIDER_INTERVAL_MS - (now - lastProviderCallMs)) / 1000)}s`);
-  }
-  lastProviderCallMs = now;
-
-  const url = new URL(request.url);
-  if (url.searchParams.get("sample") === "1") {
-    return sampleResults();
-  }
-
-  if (url.searchParams.get("test") === "1") {
-    if (!process.env.WC2026_API_KEY) throw new Error("WC2026_API_KEY is not configured");
-    const endpoint = process.env.WC2026_TEST_API_URL ?? "https://api.wc2026api.com/test/match";
-    return normalizeWc2026TestMatch(
-      await fetchJson(endpoint, {
-        headers: { authorization: `Bearer ${process.env.WC2026_API_KEY}` },
-      }),
-    );
-  }
-
+async function fetchConfiguredResultsProvider() {
   if (process.env.RESULTS_API_URL) {
     return normalizeGenericJson(await fetchJson(process.env.RESULTS_API_URL));
   }
@@ -301,6 +258,29 @@ export async function fetchResultsFromProvider(request: Request) {
   }
 
   throw new Error("No results provider configured");
+}
+
+export async function fetchResultsFromProvider(request: Request) {
+  const url = new URL(request.url);
+  if (url.searchParams.get("sample") === "1") {
+    return sampleResults();
+  }
+
+  if (inFlightProviderCall) {
+    return inFlightProviderCall;
+  }
+
+  const now = Date.now();
+  if (now - lastProviderCallMs < MIN_PROVIDER_INTERVAL_MS) {
+    throw new Error(`Results provider called too frequently — wait ${Math.ceil((MIN_PROVIDER_INTERVAL_MS - (now - lastProviderCallMs)) / 1000)}s`);
+  }
+  lastProviderCallMs = now;
+
+  inFlightProviderCall = fetchConfiguredResultsProvider().finally(() => {
+    inFlightProviderCall = null;
+  });
+
+  return inFlightProviderCall;
 }
 
 export async function readStoredResults(): Promise<ResultsRead> {
@@ -367,16 +347,21 @@ function liveCacheMs() {
 
 export async function getLiveResults(request: Request): Promise<LiveResults> {
   const url = new URL(request.url);
+  const sampleRefresh = url.searchParams.get("sample") === "1";
   const forceRefresh =
     url.searchParams.get("refresh") === "1" ||
-    url.searchParams.get("sample") === "1" ||
+    sampleRefresh ||
     url.searchParams.get("test") === "1";
   const stored = await readStoredResults();
   const currentHasResults = hasResults(stored.results);
-  const currentIsFresh =
-    hasCacheTimestamp(stored.results) && cacheAgeMs(stored.results) <= liveCacheMs();
+  const currentAgeMs = cacheAgeMs(stored.results);
+  const currentIsFresh = hasCacheTimestamp(stored.results) && currentAgeMs <= liveCacheMs();
 
   if (!forceRefresh && currentIsFresh) {
+    return { ...stored, cached: true, stale: false };
+  }
+
+  if (!sampleRefresh && forceRefresh && currentIsFresh && currentAgeMs < MIN_PROVIDER_INTERVAL_MS) {
     return { ...stored, cached: true, stale: false };
   }
 

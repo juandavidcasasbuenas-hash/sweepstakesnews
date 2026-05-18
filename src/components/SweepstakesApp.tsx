@@ -27,7 +27,6 @@ import {
   groupTeams,
   qualifiedTeams,
   resolveFixtures,
-  sampleResults,
   scoreSubmission,
   scoringRules,
 } from "@/lib/tournament";
@@ -1626,15 +1625,8 @@ export default function SweepstakesApp() {
   }, []);
 
   const loadLiveResults = useCallback(
-    async (mode: "normal" | "force" | "sample" | "test" = "normal") => {
-      const suffix =
-        mode === "sample"
-          ? "?sample=1"
-          : mode === "test"
-            ? "?test=1&refresh=1"
-            : mode === "force"
-              ? "?refresh=1"
-              : "";
+    async (mode: "normal" | "force" = "normal") => {
+      const suffix = mode === "force" ? "?refresh=1" : "";
       setResultsSyncing(true);
       try {
         const response = await fetch(`/api/results/live${suffix}`, { cache: "no-store" });
@@ -1782,15 +1774,6 @@ export default function SweepstakesApp() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(submission),
     }).catch(() => undefined);
-  }
-
-  async function syncSampleResults() {
-    const payload = await loadLiveResults("sample");
-    setResults(payload.results ?? sampleResults());
-  }
-
-  async function syncTestResults() {
-    await loadLiveResults("test");
   }
 
   function exportSubmission(submission: Submission) {
@@ -2153,11 +2136,7 @@ export default function SweepstakesApp() {
                   </div>
                   <button className="secondary-button icon-button compact-btn" onClick={() => loadLiveResults("force")}>
                     <RefreshCw size={14} />
-                    Refresh live
-                  </button>
-                  <button className="secondary-button icon-button compact-btn" onClick={syncTestResults}>
-                    <Sparkles size={14} />
-                    Test live feed
+                    Refresh live API
                   </button>
                 </div>
                 {resultsStatus ? (
@@ -2191,21 +2170,17 @@ export default function SweepstakesApp() {
                       Export my PDF
                     </button>
                   ) : null}
-	                  <button className="secondary-button icon-button compact-btn" onClick={syncSampleResults}>
-	                    <RefreshCw size={14} />
-	                    Sample results
-	                  </button>
-	                  <button className="secondary-button icon-button compact-btn" onClick={syncTestResults}>
-	                    <Sparkles size={14} />
-	                    Test live feed
-	                  </button>
-	                </div>
-	                {resultsStatus ? (
-	                  <p className="export-notice">
-	                    {resultsSyncing ? "Refreshing live results..." : resultsStatus}
-	                  </p>
-	                ) : null}
-	                {exportNotice ? <p className="export-notice">{exportNotice}</p> : null}
+                  <button className="secondary-button icon-button compact-btn" onClick={() => loadLiveResults("force")}>
+                    <RefreshCw size={14} />
+                    Refresh live API
+                  </button>
+                </div>
+                {resultsStatus ? (
+                  <p className="export-notice">
+                    {resultsSyncing ? "Refreshing live results..." : resultsStatus}
+                  </p>
+                ) : null}
+                {exportNotice ? <p className="export-notice">{exportNotice}</p> : null}
                 <Leaderboard
                   submissions={submissions}
                   results={results}
