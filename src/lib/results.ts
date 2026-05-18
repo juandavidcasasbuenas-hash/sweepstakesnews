@@ -356,6 +356,10 @@ function cacheAgeMs(results: TournamentResults) {
   return Number.isFinite(updatedAt) ? Date.now() - updatedAt : Number.POSITIVE_INFINITY;
 }
 
+function hasCacheTimestamp(results: TournamentResults) {
+  return Number.isFinite(new Date(results.updatedAt).getTime());
+}
+
 function liveCacheMs() {
   const seconds = Number(process.env.RESULTS_CACHE_SECONDS ?? 90);
   return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : 90_000;
@@ -364,12 +368,15 @@ function liveCacheMs() {
 export async function getLiveResults(request: Request): Promise<LiveResults> {
   const url = new URL(request.url);
   const forceRefresh =
-    url.searchParams.get("refresh") === "1" || url.searchParams.get("sample") === "1";
+    url.searchParams.get("refresh") === "1" ||
+    url.searchParams.get("sample") === "1" ||
+    url.searchParams.get("test") === "1";
   const stored = await readStoredResults();
   const currentHasResults = hasResults(stored.results);
-  const currentIsFresh = cacheAgeMs(stored.results) <= liveCacheMs();
+  const currentIsFresh =
+    hasCacheTimestamp(stored.results) && cacheAgeMs(stored.results) <= liveCacheMs();
 
-  if (!forceRefresh && currentHasResults && currentIsFresh) {
+  if (!forceRefresh && currentIsFresh) {
     return { ...stored, cached: true, stale: false };
   }
 

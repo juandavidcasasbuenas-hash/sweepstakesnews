@@ -1631,7 +1631,7 @@ export default function SweepstakesApp() {
         mode === "sample"
           ? "?sample=1"
           : mode === "test"
-            ? "?test=1"
+            ? "?test=1&refresh=1"
             : mode === "force"
               ? "?refresh=1"
               : "";
