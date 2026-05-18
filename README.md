@@ -58,9 +58,9 @@ Local test paths:
 
 ```bash
 curl "http://localhost:3000/api/cron/update-results?sample=1"
-curl "http://localhost:3000/api/results/live?test=1&refresh=1"
+curl "http://localhost:3000/api/results/live?refresh=1"
 ```
 
-The sample path seeds deterministic sample results. The test path calls the
-WC2026 sandbox match endpoint and maps it onto fixture 1 so the leaderboard
-pipeline can be checked before real World Cup matches are available.
+The sample path seeds deterministic local results. The live path calls the
+configured results provider (`RESULTS_API_URL`, `WC2026_API_KEY`, or
+`API_FOOTBALL_KEY`) and stores the normalized response.
