@@ -238,35 +238,90 @@ function matchPickClass(pick?: MatchPick, result?: TournamentResults["matches"][
   return pickDirection === resultDirection ? " direction" : " missed";
 }
 
-function scoreMatchPick(
+type BreakdownLine = { label: string; pts: number };
+
+function scoreMatchPickBreakdown(
   pick: MatchPick | undefined,
   result: TournamentResults["matches"][number] | undefined,
   fixture: ResolvedFixture,
-): number {
+): { total: number; lines: BreakdownLine[] } {
+  const lines: BreakdownLine[] = [];
   if (!pick || !result || typeof pick.home !== "number" || typeof pick.away !== "number") {
-    return 0;
+    return { total: 0, lines };
   }
   const pH = Number(pick.home);
   const pA = Number(pick.away);
-  let pts = 0;
   if (fixture.stage === "group") {
-    if (Math.sign(pH - pA) === Math.sign(result.home - result.away)) pts += scoringRules.groupResult;
-    if (pH === result.home) pts += scoringRules.groupTeamGoals;
-    if (pA === result.away) pts += scoringRules.groupTeamGoals;
-    if (pH - pA === result.home - result.away) pts += scoringRules.groupGoalDifferencePerTeam * 2;
-    if (pH === result.home && pA === result.away) pts += scoringRules.groupExactBonus;
+    if (Math.sign(pH - pA) === Math.sign(result.home - result.away))
+      lines.push({ label: "Correct result", pts: scoringRules.groupResult });
+    if (pH === result.home)
+      lines.push({ label: `${fixture.resolvedTeam1} goals`, pts: scoringRules.groupTeamGoals });
+    if (pA === result.away)
+      lines.push({ label: `${fixture.resolvedTeam2} goals`, pts: scoringRules.groupTeamGoals });
+    if (pH - pA === result.home - result.away)
+      lines.push({ label: "Goal difference", pts: scoringRules.groupGoalDifferencePerTeam * 2 });
+    if (pH === result.home && pA === result.away)
+      lines.push({ label: "Exact score", pts: scoringRules.groupExactBonus });
   } else {
     const pickWinner =
       pH > pA ? fixture.resolvedTeam1 :
       pA > pH ? fixture.resolvedTeam2 :
       (pick.winner ?? fixture.resolvedTeam1);
-    if (result.winner && pickWinner === result.winner) pts += scoringRules.knockoutWinner;
-    if (pH === result.home) pts += scoringRules.knockoutTeamGoals;
-    if (pA === result.away) pts += scoringRules.knockoutTeamGoals;
-    if (pH - pA === result.home - result.away) pts += scoringRules.knockoutGoalDifference;
-    if (pH === result.home && pA === result.away) pts += scoringRules.knockoutExactBonus;
+    if (result.winner && pickWinner === result.winner)
+      lines.push({ label: "Correct winner", pts: scoringRules.knockoutWinner });
+    if (pH === result.home)
+      lines.push({ label: `${fixture.resolvedTeam1} goals`, pts: scoringRules.knockoutTeamGoals });
+    if (pA === result.away)
+      lines.push({ label: `${fixture.resolvedTeam2} goals`, pts: scoringRules.knockoutTeamGoals });
+    if (pH - pA === result.home - result.away)
+      lines.push({ label: "Goal difference", pts: scoringRules.knockoutGoalDifference });
+    if (pH === result.home && pA === result.away)
+      lines.push({ label: "Exact score", pts: scoringRules.knockoutExactBonus });
   }
-  return pts;
+  return { total: lines.reduce((sum, l) => sum + l.pts, 0), lines };
+}
+
+function scoreMatchPick(
+  pick: MatchPick | undefined,
+  result: TournamentResults["matches"][number] | undefined,
+  fixture: ResolvedFixture,
+): number {
+  return scoreMatchPickBreakdown(pick, result, fixture).total;
+}
+
+function PtsBadge({
+  pick,
+  result,
+  fixture,
+  pickClass,
+}: {
+  pick: MatchPick | undefined;
+  result: TournamentResults["matches"][number] | undefined;
+  fixture: ResolvedFixture;
+  pickClass: string;
+}) {
+  const [visible, setVisible] = useState(false);
+  const { total, lines } = scoreMatchPickBreakdown(pick, result, fixture);
+  return (
+    <span
+      className={`pts-badge${pickClass}${lines.length > 0 ? " pts-badge-interactive" : ""}`}
+      aria-label={`${total} points`}
+      onMouseEnter={() => setVisible(true)}
+      onMouseLeave={() => setVisible(false)}
+    >
+      +{total}<small>pts</small>
+      {visible && lines.length > 0 && (
+        <span className="pts-tooltip" role="tooltip">
+          {lines.map((line) => (
+            <span key={line.label} className="pts-tooltip-row">
+              <span>{line.label}</span>
+              <b>+{line.pts}</b>
+            </span>
+          ))}
+        </span>
+      )}
+    </span>
+  );
 }
 
 function finalSummary(submission: Submission) {
@@ -1104,7 +1159,6 @@ function MatchDayView({
                   <div className="matchday-picks">
                     {rows.map(({ submission, fixture: resolved, pick }) => {
                       const pickClass = matchPickClass(pick, result);
-                      const pts = result ? scoreMatchPick(pick, result, resolved) : null;
                       return (
                         <div
                           className={`matchday-pick${pickClass}${submission.id === ownSubmissionId ? " own-row" : ""}`}
@@ -1118,10 +1172,8 @@ function MatchDayView({
                             <ScoreTeamLabel team={resolved.resolvedTeam1} goals={pick?.home} />
                             <ScoreTeamLabel team={resolved.resolvedTeam2} goals={pick?.away} />
                           </span>
-                          {pts !== null ? (
-                            <span className={`pts-badge${pickClass}`} aria-label={`${pts} points`}>
-                              +{pts}<small>pts</small>
-                            </span>
+                          {result ? (
+                            <PtsBadge pick={pick} result={result} fixture={resolved} pickClass={pickClass} />
                           ) : (
                             <span className="pts-badge pts-badge-pending" aria-hidden="true">—</span>
                           )}
