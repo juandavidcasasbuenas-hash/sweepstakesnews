@@ -2360,7 +2360,6 @@ export default function SweepstakesApp() {
                 <div className="section-title">
                   <span className="title-icon"><CheckCircle2 size={18} /></span>
                   <div>
-                    <span className="eyebrow">Spreadsheet DNA</span>
                     <h2>Scoring</h2>
                   </div>
                 </div>
