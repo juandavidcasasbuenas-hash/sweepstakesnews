@@ -1360,6 +1360,9 @@ function EntryExplorer({
           <div className="entry-summary-grid">
             <article className="entry-hero-pick">
               <span>Champion</span>
+              <div className="champion-flag-wrap">
+                <TeamFlag team={final.champion} />
+              </div>
               <strong>{final.champion}</strong>
               <small>{final.runnerUp} runner-up · Final {final.score}</small>
             </article>
