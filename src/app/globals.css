@@ -1282,6 +1282,19 @@ tr.third td:first-child {
   margin-bottom: 0.85rem;
 }
 
+.third-place-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-family: var(--font-display), sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  white-space: nowrap;
+  padding-right: 0.25rem;
+  border-right: 2px solid var(--line-strong);
+  margin-right: 0.1rem;
+}
+
 .team-pill {
   display: inline-flex;
   align-items: center;

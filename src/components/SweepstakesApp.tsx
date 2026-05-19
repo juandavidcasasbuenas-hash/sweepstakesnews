@@ -1394,6 +1394,7 @@ function EntryExplorer({
         {viewTab === "groups" ? (
           <div className="entry-view-section">
             <div className="third-place-strip">
+              <span className="third-place-label">Best 3rd-placed teams qualifying to knockouts</span>
               {qualified.bestThirds.map((team) => (
                 <TeamPill key={`${selectedSubmission.id}-${team.group}-${team.team}`} team={team.team}>
                   3{team.group} · {team.team}
