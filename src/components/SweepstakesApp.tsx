@@ -2403,9 +2403,6 @@ export default function SweepstakesApp() {
                     <div className="rules-row"><span>Most goals (team)</span><b>+{scoringRules.mostGoalsTeam}</b></div>
                   </div>
                 </div>
-                <div className="source-note">
-                  Fixture seed: openfootball/worldcup.json. Format: FIFA 48-team rules. Results: Vercel cron route accepts API-Football or any JSON feed shaped like match results.
-                </div>
               </section>
             )}
 
