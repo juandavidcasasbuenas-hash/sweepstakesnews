@@ -20,7 +20,6 @@ import type { ReactNode } from "react";
 import {
   autofillTournament,
   calculateGroupStandings,
-  completedMatchCount,
   createEmptyPicks,
   emptyBonuses,
   FIRST_KICK_OFF_ISO,
@@ -56,8 +55,8 @@ const blankResults: TournamentResults = {
 const liveResultsPollMs = 60_000;
 
 type Tab = "predict" | "matchday" | "leaderboard" | "rules";
-type EntryViewTab = "summary" | "groups" | "bracket" | "picks";
-type PredictionStep = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "round32" | "round16" | "quarter" | "semi" | "finals";
+type EntryViewTab = "summary" | "groups" | "bracket";
+type PredictionStep = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "round32" | "round16" | "quarter" | "semi" | "thirdPlace" | "final";
 type ResultsPayload = {
   mode?: string;
   cached?: boolean;
@@ -72,58 +71,59 @@ const knockoutPredictionSteps: Array<{ id: PredictionStep; label: string; short:
   { id: "round16", label: "Round of 16", short: "R16" },
   { id: "quarter", label: "Quarter-finals", short: "QF" },
   { id: "semi", label: "Semi-finals", short: "SF" },
-  { id: "finals", label: "Finals", short: "Finals" },
+  { id: "thirdPlace", label: "Third Place Match", short: "3rd" },
+  { id: "final", label: "Final", short: "Final" },
 ];
 
-const teamFlags: Record<string, string> = {
-  Algeria: "🇩🇿",
-  Argentina: "🇦🇷",
-  Australia: "🇦🇺",
-  Austria: "🇦🇹",
-  Belgium: "🇧🇪",
-  "Bosnia & Herzegovina": "🇧🇦",
-  Brazil: "🇧🇷",
-  Canada: "🇨🇦",
-  "Cape Verde": "🇨🇻",
-  Colombia: "🇨🇴",
-  Croatia: "🇭🇷",
-  Curaçao: "🇨🇼",
-  "Czech Republic": "🇨🇿",
-  "DR Congo": "🇨🇩",
-  Ecuador: "🇪🇨",
-  Egypt: "🇪🇬",
-  England: "🏴",
-  France: "🇫🇷",
-  Germany: "🇩🇪",
-  Ghana: "🇬🇭",
-  Haiti: "🇭🇹",
-  Iran: "🇮🇷",
-  Iraq: "🇮🇶",
-  "Ivory Coast": "🇨🇮",
-  Japan: "🇯🇵",
-  Jordan: "🇯🇴",
-  Mexico: "🇲🇽",
-  Morocco: "🇲🇦",
-  Netherlands: "🇳🇱",
-  "New Zealand": "🇳🇿",
-  Norway: "🇳🇴",
-  Panama: "🇵🇦",
-  Paraguay: "🇵🇾",
-  Portugal: "🇵🇹",
-  Qatar: "🇶🇦",
-  "Saudi Arabia": "🇸🇦",
-  Scotland: "🏴",
-  Senegal: "🇸🇳",
-  "South Africa": "🇿🇦",
-  "South Korea": "🇰🇷",
-  Spain: "🇪🇸",
-  Sweden: "🇸🇪",
-  Switzerland: "🇨🇭",
-  Tunisia: "🇹🇳",
-  Turkey: "🇹🇷",
-  USA: "🇺🇸",
-  Uruguay: "🇺🇾",
-  Uzbekistan: "🇺🇿",
+const teamFlagCodes: Record<string, string> = {
+  Algeria: "dz",
+  Argentina: "ar",
+  Australia: "au",
+  Austria: "at",
+  Belgium: "be",
+  "Bosnia & Herzegovina": "ba",
+  Brazil: "br",
+  Canada: "ca",
+  "Cape Verde": "cv",
+  Colombia: "co",
+  Croatia: "hr",
+  Curaçao: "cw",
+  "Czech Republic": "cz",
+  "DR Congo": "cd",
+  Ecuador: "ec",
+  Egypt: "eg",
+  England: "gb-eng",
+  France: "fr",
+  Germany: "de",
+  Ghana: "gh",
+  Haiti: "ht",
+  Iran: "ir",
+  Iraq: "iq",
+  "Ivory Coast": "ci",
+  Japan: "jp",
+  Jordan: "jo",
+  Mexico: "mx",
+  Morocco: "ma",
+  Netherlands: "nl",
+  "New Zealand": "nz",
+  Norway: "no",
+  Panama: "pa",
+  Paraguay: "py",
+  Portugal: "pt",
+  Qatar: "qa",
+  "Saudi Arabia": "sa",
+  Scotland: "gb-sct",
+  Senegal: "sn",
+  "South Africa": "za",
+  "South Korea": "kr",
+  Spain: "es",
+  Sweden: "se",
+  Switzerland: "ch",
+  Tunisia: "tn",
+  Turkey: "tr",
+  USA: "us",
+  Uruguay: "uy",
+  Uzbekistan: "uz",
 };
 
 function isLocked() {
@@ -152,25 +152,64 @@ function formatDate(fixture: ResolvedFixture) {
   return `${fixture.date.replace("2026-", "")} · ${fixture.time.replace(" UTC", " UTC")}`;
 }
 
-function flagFor(team: string) {
-  return teamFlags[team] ?? "";
+function flagUrlFor(team: string) {
+  const code = teamFlagCodes[team];
+  return code ? `https://flagcdn.com/w40/${code}.png` : "";
+}
+
+function TeamFlag({ team }: { team: string }) {
+  const flag = flagUrlFor(team);
+  return flag ? (
+    <span className="flag" aria-hidden="true" style={{ backgroundImage: `url(${flag})` }} />
+  ) : null;
+}
+
+const teamAbbrOverrides: Record<string, string> = {
+  "Bosnia & Herzegovina": "BIH",
+  "Cape Verde": "CPV",
+  "Czech Republic": "CZE",
+  "DR Congo": "COD",
+  "Ivory Coast": "CIV",
+  "New Zealand": "NZL",
+  "Saudi Arabia": "KSA",
+  "South Africa": "RSA",
+  "South Korea": "KOR",
+  Iran: "IRN",
+  Iraq: "IRQ",
+  Netherlands: "NED",
+  Switzerland: "SUI",
+  "Curaçao": "CUW",
+};
+
+function teamAbbreviation(team: string): string {
+  if (teamAbbrOverrides[team]) return teamAbbrOverrides[team];
+  const words = team.replace(/&/g, "").split(/\s+/).filter(Boolean);
+  if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
+  return words.map((w) => w[0]).join("").slice(0, 3).toUpperCase();
 }
 
 function TeamLabel({ team }: { team: string }) {
-  const flag = flagFor(team);
   return (
     <span className="team-label">
-      {flag ? <span className="flag" aria-hidden="true">{flag}</span> : null}
+      <TeamFlag team={team} />
       <span>{team}</span>
     </span>
   );
 }
 
+function TeamLabelAbbr({ team }: { team: string }) {
+  return (
+    <span className="team-label">
+      <TeamFlag team={team} />
+      <span>{teamAbbreviation(team)}</span>
+    </span>
+  );
+}
+
 function TeamPill({ children, team }: { children: React.ReactNode; team?: string }) {
-  const flag = team ? flagFor(team) : "";
   return (
     <span className="team-pill">
-      {flag ? <span className="flag" aria-hidden="true">{flag}</span> : null}
+      {team ? <TeamFlag team={team} /> : null}
       {children}
     </span>
   );
@@ -180,8 +219,39 @@ function scoreComplete(pick?: MatchPick) {
   return typeof pick?.home === "number" && typeof pick.away === "number";
 }
 
+function penaltyWinnerSelected(fixture: ResolvedFixture, pick?: MatchPick) {
+  return (
+    fixture.stage === "group" ||
+    !pick ||
+    typeof pick.home !== "number" ||
+    typeof pick.away !== "number" ||
+    pick.home !== pick.away ||
+    pick.winner === fixture.resolvedTeam1 ||
+    pick.winner === fixture.resolvedTeam2
+  );
+}
+
+function matchPickComplete(fixture: ResolvedFixture, pick?: MatchPick) {
+  return scoreComplete(pick) && penaltyWinnerSelected(fixture, pick);
+}
+
 function completedInFixtures(fixtures: ResolvedFixture[], picks: Record<number, MatchPick>) {
-  return fixtures.filter((fixture) => scoreComplete(picks[fixture.id])).length;
+  return fixtures.filter((fixture) => matchPickComplete(fixture, picks[fixture.id])).length;
+}
+
+function completedRequiredPickCount(fixtures: ResolvedFixture[], picks: Record<number, MatchPick>) {
+  return fixtures.filter((fixture) => matchPickComplete(fixture, picks[fixture.id])).length;
+}
+
+function incompleteRequiredPickCount(fixtures: ResolvedFixture[], picks: Record<number, MatchPick>) {
+  return fixtures.length - completedRequiredPickCount(fixtures, picks);
+}
+
+function missingPenaltyWinnerCount(fixtures: ResolvedFixture[], picks: Record<number, MatchPick>) {
+  return fixtures.filter((fixture) => {
+    const pick = picks[fixture.id];
+    return scoreComplete(pick) && !penaltyWinnerSelected(fixture, pick);
+  }).length;
 }
 
 function escapeHtml(value: string | number | undefined) {
@@ -196,6 +266,20 @@ function escapeHtml(value: string | number | undefined) {
 function pickScore(pick?: MatchPick) {
   if (!pick || pick.home === "" || pick.away === "") return "? - ?";
   return `${pick.home} - ${pick.away}`;
+}
+
+function knockoutPickLabel(pick?: MatchPick) {
+  const score = pickScore(pick);
+  if (!pick || pick.home === "" || pick.away === "") return score;
+  if (pick.home !== pick.away) return score;
+  return `${score} (${pick.winner ? `${pick.winner} pens` : "penalty winner needed"})`;
+}
+
+function predictedWinner(fixture: ResolvedFixture, pick?: MatchPick) {
+  if (!pick || typeof pick.home !== "number" || typeof pick.away !== "number") return "";
+  if (pick.home > pick.away) return fixture.resolvedTeam1;
+  if (pick.away > pick.home) return fixture.resolvedTeam2;
+  return pick.winner || fixture.resolvedTeam1;
 }
 
 function ScoreTeamLabel({
@@ -279,14 +363,6 @@ function scoreMatchPickBreakdown(
       lines.push({ label: "Exact score", pts: scoringRules.knockoutExactBonus });
   }
   return { total: lines.reduce((sum, l) => sum + l.pts, 0), lines };
-}
-
-function scoreMatchPick(
-  pick: MatchPick | undefined,
-  result: TournamentResults["matches"][number] | undefined,
-  fixture: ResolvedFixture,
-): number {
-  return scoreMatchPickBreakdown(pick, result, fixture).total;
 }
 
 function PtsBadge({
@@ -452,7 +528,7 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
             <td>M${fixture.id}</td>
             <td>${escapeHtml(fixture.round)}</td>
             <td>${escapeHtml(fixture.resolvedTeam1)}</td>
-            <td class="score">${escapeHtml(pickScore(pick))}</td>
+            <td class="score">${escapeHtml(fixture.stage === "group" ? pickScore(pick) : knockoutPickLabel(pick))}</td>
             <td>${escapeHtml(fixture.resolvedTeam2)}</td>
           </tr>
         `;
@@ -470,26 +546,18 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
                 const fixture = resolved.find((item) => item.id === matchId);
                 if (!fixture) return "";
                 const pick = submission.picks[fixture.id];
-                const winner =
-                  pick?.winner ||
-                  (typeof pick?.home === "number" && typeof pick?.away === "number"
-                    ? pick.home > pick.away
-                      ? fixture.resolvedTeam1
-                      : pick.away > pick.home
-                        ? fixture.resolvedTeam2
-                        : ""
-                    : "");
+                const winner = predictedWinner(fixture, pick);
 
                 return `
                   <article class="tree-match">
-                    <div class="tree-meta">M${fixture.id} - ${escapeHtml(fixture.round)}</div>
+                    <div class="tree-meta">M${fixture.id} - ${escapeHtml(fixture.round)} - ${escapeHtml(knockoutPickLabel(pick))}</div>
                     <div class="tree-team ${winner === fixture.resolvedTeam1 ? "tree-winner" : ""}">
                       <span>${escapeHtml(fixture.resolvedTeam1)}</span>
-                      <b>${pick?.home === "" ? "?" : escapeHtml(pick?.home)}</b>
+                      <b>${pick?.home === "" || pick?.home === undefined ? "?" : escapeHtml(pick.home)}</b>
                     </div>
                     <div class="tree-team ${winner === fixture.resolvedTeam2 ? "tree-winner" : ""}">
                       <span>${escapeHtml(fixture.resolvedTeam2)}</span>
-                      <b>${pick?.away === "" ? "?" : escapeHtml(pick?.away)}</b>
+                      <b>${pick?.away === "" || pick?.away === undefined ? "?" : escapeHtml(pick.away)}</b>
                     </div>
                   </article>
                 `;
@@ -900,67 +968,6 @@ function openPredictionPdf(submission: Submission, results: TournamentResults) {
   return true;
 }
 
-function ScoreInputs({
-  fixture,
-  pick,
-  updatePick,
-}: {
-  fixture: ResolvedFixture;
-  pick: MatchPick;
-  updatePick: (fixtureId: number, patch: Partial<MatchPick>) => void;
-}) {
-  const needsWinner =
-    fixture.stage !== "group" &&
-    typeof pick.home === "number" &&
-    typeof pick.away === "number" &&
-    pick.home === pick.away;
-
-  return (
-    <div className="score-row">
-      <label className="score-team-card">
-        <TeamLabel team={fixture.resolvedTeam1} />
-        <input
-          className="score-input home-score"
-          aria-label={`${fixture.resolvedTeam1} goals`}
-          inputMode="numeric"
-          min={0}
-          max={15}
-          value={pick.home}
-          onChange={(event) =>
-            updatePick(fixture.id, { home: normalizeNumber(event.target.value) })
-          }
-          onFocus={(event) => event.currentTarget.select()}
-        />
-      </label>
-      <label className="score-team-card">
-        <TeamLabel team={fixture.resolvedTeam2} />
-        <input
-          className="score-input away-score"
-          aria-label={`${fixture.resolvedTeam2} goals`}
-          inputMode="numeric"
-          min={0}
-          max={15}
-          value={pick.away}
-          onChange={(event) =>
-            updatePick(fixture.id, { away: normalizeNumber(event.target.value) })
-          }
-          onFocus={(event) => event.currentTarget.select()}
-        />
-      </label>
-      {needsWinner ? (
-        <select
-          aria-label="Penalty winner"
-          value={pick.winner || fixture.resolvedTeam1}
-          onChange={(event) => updatePick(fixture.id, { winner: event.target.value })}
-        >
-          <option value={fixture.resolvedTeam1}>{fixture.resolvedTeam1} on pens</option>
-          <option value={fixture.resolvedTeam2}>{fixture.resolvedTeam2} on pens</option>
-        </select>
-      ) : null}
-    </div>
-  );
-}
-
 function FixtureCard({
   fixture,
   pick,
@@ -970,14 +977,76 @@ function FixtureCard({
   pick: MatchPick;
   updatePick: (fixtureId: number, patch: Partial<MatchPick>) => void;
 }) {
+  const updateScore = (side: "home" | "away", value: string) => {
+    const nextValue = normalizeNumber(value);
+    const nextHome = side === "home" ? nextValue : pick.home;
+    const nextAway = side === "away" ? nextValue : pick.away;
+    updatePick(fixture.id, {
+      [side]: nextValue,
+      winner:
+        fixture.stage !== "group" &&
+        typeof nextHome === "number" &&
+        typeof nextAway === "number" &&
+        nextHome === nextAway
+          ? pick.winner
+          : undefined,
+    });
+  };
+  const needsWinner =
+    fixture.stage !== "group" &&
+    typeof pick.home === "number" &&
+    typeof pick.away === "number" &&
+    pick.home === pick.away;
+
   return (
     <article className="fixture-card">
-      <div className="fixture-meta">
-        <span className="match-chip">M{fixture.id}</span>
-        <span>{formatDate(fixture)}</span>
-        <span className="venue-chip">{fixture.venue}</span>
+      <span className="match-chip">M{fixture.id}</span>
+      <div className="fixture-home">
+        <TeamLabel team={fixture.resolvedTeam1} />
       </div>
-      <ScoreInputs fixture={fixture} pick={pick} updatePick={updatePick} />
+      <div className="score-inputs-inline">
+        <input
+          className="score-input home-score"
+          aria-label={`${fixture.resolvedTeam1} goals`}
+          inputMode="numeric"
+          min={0}
+          max={15}
+          value={pick.home}
+          onChange={(event) => updateScore("home", event.target.value)}
+          onFocus={(event) => event.currentTarget.select()}
+        />
+        <span className="vs-sep">–</span>
+        <input
+          className="score-input away-score"
+          aria-label={`${fixture.resolvedTeam2} goals`}
+          inputMode="numeric"
+          min={0}
+          max={15}
+          value={pick.away}
+          onChange={(event) => updateScore("away", event.target.value)}
+          onFocus={(event) => event.currentTarget.select()}
+        />
+      </div>
+      <div className="fixture-away">
+        <TeamLabel team={fixture.resolvedTeam2} />
+      </div>
+      {needsWinner && (
+        <select
+          className="penalty-select"
+          aria-label="Penalty winner"
+          value={
+            pick.winner === fixture.resolvedTeam1 || pick.winner === fixture.resolvedTeam2
+              ? pick.winner
+              : ""
+          }
+          onChange={(event) => updatePick(fixture.id, { winner: event.target.value })}
+          required
+        >
+          <option value="" disabled>Penalty winner?</option>
+          <option value={fixture.resolvedTeam1}>{fixture.resolvedTeam1}</option>
+          <option value={fixture.resolvedTeam2}>{fixture.resolvedTeam2}</option>
+        </select>
+      )}
     </article>
   );
 }
@@ -1045,6 +1114,8 @@ function MatchDayView({
   results,
   selectedDate,
   onDateChange,
+  onCheckResults,
+  resultsSyncing,
   ownSubmissionId,
 }: {
   fixtures: ResolvedFixture[];
@@ -1052,6 +1123,8 @@ function MatchDayView({
   results: TournamentResults;
   selectedDate: string;
   onDateChange: (date: string) => void;
+  onCheckResults: () => void;
+  resultsSyncing: boolean;
   ownSubmissionId?: string | null;
 }) {
   const matchDays = useMemo(
@@ -1077,11 +1150,15 @@ function MatchDayView({
           <div>
             <span className="eyebrow">Match day view</span>
             <h2>Predictions by fixture</h2>
+            <button
+              className="secondary-button icon-button compact-btn matchday-check-button"
+              onClick={onCheckResults}
+              disabled={resultsSyncing}
+            >
+              <RefreshCw size={14} />
+              {resultsSyncing ? "Checking..." : "Check for results"}
+            </button>
           </div>
-        </div>
-        <div className="matchday-summary">
-          <strong>{activeFixtures.length}</strong>
-          <span>fixtures</span>
         </div>
       </div>
 
@@ -1225,7 +1302,6 @@ function EntryExplorer({
     { id: "summary", label: "Summary" },
     { id: "groups", label: "Groups" },
     { id: "bracket", label: "Knockout tree" },
-    { id: "picks", label: "All picks" },
   ];
 
   return (
@@ -1321,29 +1397,13 @@ function EntryExplorer({
                 </TeamPill>
               ))}
             </div>
-            <GroupTables picks={selectedSubmission.picks} />
+            <GroupTables picks={selectedSubmission.picks} showFixtures />
           </div>
         ) : null}
 
         {viewTab === "bracket" ? (
           <div className="entry-view-section entry-bracket-section">
-            <Bracket fixtures={resolved} />
-          </div>
-        ) : null}
-
-        {viewTab === "picks" ? (
-          <div className="drawer-list entry-pick-list">
-            {resolved.map((fixture) => {
-              const pick = selectedSubmission.picks[fixture.id];
-              return (
-                <div className="drawer-pick" key={fixture.id}>
-                  <small>M{fixture.id} · {fixture.round}</small>
-                  <TeamLabel team={fixture.resolvedTeam1} />
-                  <b>{pick.home === "" ? "?" : pick.home} - {pick.away === "" ? "?" : pick.away}</b>
-                  <TeamLabel team={fixture.resolvedTeam2} />
-                </div>
-              );
-            })}
+            <Bracket fixtures={resolved} picks={selectedSubmission.picks} />
           </div>
         ) : null}
       </div>
@@ -1351,35 +1411,59 @@ function EntryExplorer({
   );
 }
 
-function GroupTables({ picks }: { picks: Record<number, MatchPick> }) {
+function GroupTables({
+  picks,
+  showFixtures = false,
+}: {
+  picks: Record<number, MatchPick>;
+  showFixtures?: boolean;
+}) {
   const standings = calculateGroupStandings(picks);
+  const resolved = showFixtures ? resolveFixtures(picks) : [];
   return (
     <div className="group-grid">
-      {Array.from(standings.entries()).map(([group, table]) => (
-        <section className="group-table" key={group}>
-          <h3>Group {group}</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Team</th>
-                <th>Pts</th>
-                <th>GD</th>
-                <th>GF</th>
-              </tr>
-            </thead>
-            <tbody>
-              {table.map((standing) => (
-                <tr key={standing.team} className={standing.position <= 2 ? "qualified" : standing.position === 3 ? "third" : ""}>
-                  <td><TeamLabel team={standing.team} /></td>
-                  <td>{standing.points}</td>
-                  <td>{standing.gd}</td>
-                  <td>{standing.gf}</td>
+      {Array.from(standings.entries()).map(([group, table]) => {
+        const fixtures = resolved.filter((fixture) => fixture.stage === "group" && fixture.group === group);
+        return (
+          <section className="group-table" key={group}>
+            <h3>Group {group}</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Team</th>
+                  <th>Pts</th>
+                  <th>GD</th>
+                  <th>GF</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      ))}
+              </thead>
+              <tbody>
+                {table.map((standing) => (
+                  <tr key={standing.team} className={standing.position <= 2 ? "qualified" : standing.position === 3 ? "third" : ""}>
+                    <td><TeamLabel team={standing.team} /></td>
+                    <td>{standing.points}</td>
+                    <td>{standing.gd}</td>
+                    <td>{standing.gf}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {showFixtures ? (
+              <div className="group-fixture-list" aria-label={`Group ${group} predicted fixtures`}>
+                {fixtures.map((fixture) => {
+                  const pick = picks[fixture.id];
+                  return (
+                    <article className="group-fixture-pick" key={fixture.id}>
+                      <div className="gfp-home"><TeamLabelAbbr team={fixture.resolvedTeam1} /></div>
+                      <b>{pickScore(pick)}</b>
+                      <div className="gfp-away"><TeamLabelAbbr team={fixture.resolvedTeam2} /></div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : null}
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -1448,7 +1532,13 @@ const BRACKET_COLS = [
   { stage: "final" as const, label: "Final" },
 ];
 
-function Bracket({ fixtures: resolved }: { fixtures: ResolvedFixture[] }) {
+function Bracket({
+  fixtures: resolved,
+  picks,
+}: {
+  fixtures: ResolvedFixture[];
+  picks: Record<number, MatchPick>;
+}) {
   const byId = new Map(resolved.map((f) => [f.id, f]));
 
   return (
@@ -1472,12 +1562,25 @@ function Bracket({ fixtures: resolved }: { fixtures: ResolvedFixture[] }) {
                 {pair.map((id) => {
                   const fx = byId.get(id);
                   if (!fx) return null;
+                  const pick = picks[fx.id];
+                  const winner = predictedWinner(fx, pick);
                   return (
                     <div key={id} className="bk-slot" style={{ height: slotH }}>
                       <article className="bk-card">
-                        <TeamLabel team={fx.resolvedTeam1} />
+                        <div className={`bk-team-line${winner === fx.resolvedTeam1 ? " bk-team-winner" : ""}`}>
+                          <TeamLabel team={fx.resolvedTeam1} />
+                          <b>{pick?.home === "" || pick?.home === undefined ? "?" : pick.home}</b>
+                        </div>
                         <div className="bk-hr" />
-                        <TeamLabel team={fx.resolvedTeam2} />
+                        <div className={`bk-team-line${winner === fx.resolvedTeam2 ? " bk-team-winner" : ""}`}>
+                          <TeamLabel team={fx.resolvedTeam2} />
+                          <b>{pick?.away === "" || pick?.away === undefined ? "?" : pick.away}</b>
+                        </div>
+                        {typeof pick?.home === "number" && pick.home === pick.away ? (
+                          <small className="bk-penalty-note">
+                            {pick.winner ? `${pick.winner} on pens` : "Penalty winner needed"}
+                          </small>
+                        ) : null}
                       </article>
                     </div>
                   );
@@ -1511,6 +1614,15 @@ function Review({
   const resolved = resolveFixtures(picks);
   const final = resolved.find((fixture) => fixture.id === 104);
   const finalPick = picks[104];
+  const completedRequiredPicks = completedRequiredPickCount(resolved, picks);
+  const missingPenaltyWinners = missingPenaltyWinnerCount(resolved, picks);
+  const canSubmit =
+    completedRequiredPicks === resolved.length &&
+    missingPenaltyWinners === 0 &&
+    !!name.trim() &&
+    !!bonuses.topScorer.trim() &&
+    !!bonuses.goldenBall.trim() &&
+    !!bonuses.mostGoalsTeam.trim();
 
   return (
     <section className="panel review-panel">
@@ -1558,7 +1670,10 @@ function Review({
       </div>
       <div className="confirmation-strip">
         <CheckCircle2 size={18} />
-        <span>{completedMatchCount(picks)} of 104 matches filled</span>
+        <span>
+          {completedRequiredPicks} of 104 matches complete
+          {missingPenaltyWinners ? ` · ${missingPenaltyWinners} penalty winner${missingPenaltyWinners === 1 ? "" : "s"} needed` : ""}
+        </span>
         {final ? (
           <strong>
             Final: {final.resolvedTeam1} {finalPick.home || 0}-{finalPick.away || 0} {final.resolvedTeam2}
@@ -1571,7 +1686,7 @@ function Review({
         <button
           className="primary-button"
           onClick={onSubmit}
-          disabled={!name.trim() || !bonuses.topScorer.trim() || !bonuses.goldenBall.trim() || !bonuses.mostGoalsTeam.trim()}
+          disabled={!canSubmit}
         >
           Confirm entry
         </button>
@@ -1661,7 +1776,7 @@ export default function SweepstakesApp() {
     }
 
     if (!resultCount) {
-      setResultsStatus("Live results connected. No completed matches yet.");
+      setResultsStatus("");
       return;
     }
 
@@ -1795,9 +1910,14 @@ export default function SweepstakesApp() {
   }, [ownSubmission?.id, selectedSubmissionId, submissions]);
   const hasSubmittedEntry = Boolean(ownSubmission);
   const locked = isLocked();
-  const totalFilledMatches = completedMatchCount(picks);
-  const allMatchesFilled = totalFilledMatches === 104;
-  const canReview = !hasSubmittedEntry && !locked && !!name.trim() && allMatchesFilled;
+  const totalIncompleteRequiredPicks = incompleteRequiredPickCount(resolvedFixtures, picks);
+  const totalMissingPenaltyWinners = missingPenaltyWinnerCount(resolvedFixtures, picks);
+  const canReview =
+    !hasSubmittedEntry &&
+    !locked &&
+    !!name.trim() &&
+    totalIncompleteRequiredPicks === 0 &&
+    totalMissingPenaltyWinners === 0;
 
   function updatePick(fixtureId: number, patch: Partial<MatchPick>) {
     setPicks((current) => ({
@@ -1807,6 +1927,18 @@ export default function SweepstakesApp() {
   }
 
   async function submit() {
+    const resolvedSubmissionFixtures = resolveFixtures(picks);
+    if (
+      !name.trim() ||
+      incompleteRequiredPickCount(resolvedSubmissionFixtures, picks) > 0 ||
+      missingPenaltyWinnerCount(resolvedSubmissionFixtures, picks) > 0 ||
+      !bonuses.topScorer.trim() ||
+      !bonuses.goldenBall.trim() ||
+      !bonuses.mostGoalsTeam.trim()
+    ) {
+      return;
+    }
+
     const submittedPicks = JSON.parse(JSON.stringify(picks)) as Record<number, MatchPick>;
     const submittedBonuses = { ...bonuses };
     const submission: Submission = {
@@ -1860,9 +1992,6 @@ export default function SweepstakesApp() {
         if (activeStepMeta.kind === "group") {
           return fixture.stage === "group" && fixture.group === activeStepMeta.id;
         }
-        if (activeStepMeta.id === "finals") {
-          return fixture.stage === "thirdPlace" || fixture.stage === "final";
-        }
         return fixture.stage === activeStepMeta.id;
       }),
     [activeStepMeta, resolvedFixtures],
@@ -1882,28 +2011,18 @@ export default function SweepstakesApp() {
     { key: "rules", label: "Scoring", icon: <CheckCircle2 size={18} /> },
   ];
 
-  const heroData: Record<Tab, { eyebrow: string; h1: string; subtitle: string }> = {
+  const heroData: Record<Tab, { h1: string }> = {
     predict: {
-      eyebrow: hasSubmittedEntry ? "■ Entry confirmed · World Cup 2026" : "■ Exclusive · World Cup 2026",
       h1: hasSubmittedEntry ? "Your\nPicks" : "Predict\nAll 104",
-      subtitle: hasSubmittedEntry
-        ? "Your entry is locked and loaded. The table doesn't lie — check the leaderboard."
-        : "Call every score. All 104 matches. Build your bracket. Who dares, wins.",
     },
     leaderboard: {
-      eyebrow: "■ Live standings · Updated every minute",
       h1: "The\nTable",
-      subtitle: "The numbers don't lie. Results in, points updated, bragging rights on the line.",
     },
     matchday: {
-      eyebrow: "■ Fixture by fixture · Live comparisons",
       h1: "Match\nDays",
-      subtitle: "Every pick, every player, every match — stacked against the actual result.",
     },
     rules: {
-      eyebrow: "■ How to win",
       h1: "Scoring\nSystem",
-      subtitle: "Exact scores, correct results, deep runs, bonus picks — every point explained.",
     },
   };
   const activeHero = heroData[tab];
@@ -1928,8 +2047,16 @@ export default function SweepstakesApp() {
     <main className="arena-layout">
       <aside className="tournament-rail">
         <div className="rail-brand">
-          <span className="rail-crest">SN</span>
-          <div>
+          <span className="rail-crest" aria-hidden="true">
+            <Image
+              src="/football-logo.png"
+              alt=""
+              width={52}
+              height={52}
+              className="rail-logo-image"
+            />
+          </span>
+          <div className="rail-brand-copy">
             <strong>Sweepstakes News</strong>
             <span>World Cup 2026</span>
           </div>
@@ -1965,9 +2092,7 @@ export default function SweepstakesApp() {
           <div className="hero-overlay" />
           <div className="hero-grid" aria-hidden="true" />
           <div className="hero-content">
-            <div className="hero-context">{activeHero.eyebrow}</div>
             <h1>{activeHero.h1}</h1>
-            <p>{activeHero.subtitle}</p>
           </div>
         </section>
 
@@ -2043,10 +2168,7 @@ export default function SweepstakesApp() {
                       })}
                       <div className="journey-divider" aria-hidden="true" />
                       {predictionSteps.filter((step) => step.kind === "knockout").map((step) => {
-                        const stepFixtures = resolvedFixtures.filter((f) => {
-                          if (step.id === "finals") return f.stage === "thirdPlace" || f.stage === "final";
-                          return f.stage === step.id;
-                        });
+                        const stepFixtures = resolvedFixtures.filter((f) => f.stage === step.id);
                         const done = completedInFixtures(stepFixtures, picks);
                         const complete = done === stepFixtures.length && stepFixtures.length > 0;
                         return (
@@ -2078,11 +2200,7 @@ export default function SweepstakesApp() {
                               <TeamPill key={team} team={team}>{team}</TeamPill>
                             ))}
                           </div>
-                        ) : (
-                          <p style={{ margin: 0, color: "var(--muted)", fontWeight: 800 }}>
-                            {activeFixtures.length} fixtures in this round
-                          </p>
-                        )}
+                        ) : null}
                       </div>
                       <div className="active-stage-counter">
                         <strong>{activeCompleted}</strong>
@@ -2095,7 +2213,7 @@ export default function SweepstakesApp() {
                   </div>
 
                   {/* Workbench */}
-                  <div className="prediction-workbench">
+                  <div className={`prediction-workbench${activeStepMeta.kind !== "group" ? " workbench-full" : ""}`}>
                     <div className="fixtures-grid bite-fixtures">
                       {activeFixtures.map((fixture) => (
                         <FixtureCard
@@ -2106,29 +2224,11 @@ export default function SweepstakesApp() {
                         />
                       ))}
                     </div>
-                    <aside className="live-rankings-card">
-                      {activeStepMeta.kind === "group" ? (
+                    {activeStepMeta.kind === "group" && (
+                      <aside className="live-rankings-card">
                         <GroupTableCard group={activeStepMeta.id} picks={picks} />
-                      ) : (
-                        <div className="knockout-helper">
-                          <span className="eyebrow">Resolved from your picks</span>
-                          <h3>{activeStepMeta.label}</h3>
-                          <p>
-                            Teams are fed by your group tables and earlier knockout winners.
-                            Change a group score and this round updates automatically.
-                          </p>
-                          <div className="knockout-preview">
-                            {activeFixtures.map((fixture) => (
-                              <article className="bracket-match" key={fixture.id}>
-                                <small>M{fixture.id} · {fixture.venue}</small>
-                                <TeamLabel team={fixture.resolvedTeam1} />
-                                <TeamLabel team={fixture.resolvedTeam2} />
-                              </article>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </aside>
+                      </aside>
+                    )}
                   </div>
 
                   {/* Footer nav bar */}
@@ -2163,7 +2263,9 @@ export default function SweepstakesApp() {
                         <span className="footer-cta-hint">
                           {!name.trim()
                             ? "Add your name above to continue"
-                            : `${104 - totalFilledMatches} match${104 - totalFilledMatches === 1 ? "" : "es"} left`}
+                            : totalMissingPenaltyWinners
+                              ? `${totalMissingPenaltyWinners} penalty winner${totalMissingPenaltyWinners === 1 ? "" : "s"} needed`
+                              : `${totalIncompleteRequiredPicks} match${totalIncompleteRequiredPicks === 1 ? "" : "es"} left`}
                         </span>
                       ) : null
                     ) : (
@@ -2181,16 +2283,6 @@ export default function SweepstakesApp() {
 
             {tab === "matchday" && (
               <div key="matchday-panel" style={{ display: "grid", gap: "1.4rem" }}>
-                <div className="leaderboard-toolbar">
-                  <div className="post-submit-note">
-                    <CalendarDays size={16} />
-                    <span>Live result checks run while this view is open.</span>
-                  </div>
-                  <button className="secondary-button icon-button compact-btn" onClick={() => loadLiveResults("force")}>
-                    <RefreshCw size={14} />
-                    Refresh live API
-                  </button>
-                </div>
                 {resultsStatus ? (
                   <p className="export-notice">
                     {resultsSyncing ? "Refreshing live results..." : resultsStatus}
@@ -2202,6 +2294,8 @@ export default function SweepstakesApp() {
                   results={results}
                   selectedDate={selectedMatchDate}
                   onDateChange={setSelectedMatchDate}
+                  onCheckResults={() => void loadLiveResults("force")}
+                  resultsSyncing={resultsSyncing}
                   ownSubmissionId={ownSubmission?.id ?? submittedEntryId}
                 />
               </div>
@@ -2224,7 +2318,7 @@ export default function SweepstakesApp() {
                   ) : null}
                   <button className="secondary-button icon-button compact-btn" onClick={() => loadLiveResults("force")}>
                     <RefreshCw size={14} />
-                    Refresh live API
+                    Check for results
                   </button>
                 </div>
                 {resultsStatus ? (

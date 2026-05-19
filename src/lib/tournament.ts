@@ -409,15 +409,21 @@ export function scoreSubmission(
 
   const actualResolved = resolveFixtures(results.matches);
   const predictedResolved = resolveFixtures(submission.picks);
+  const teamsInFixtures = (resolved: ResolvedFixture[], ids: number[]) =>
+    new Set(
+      resolved
+        .filter((fixture) => ids.includes(fixture.id))
+        .flatMap((fixture) => [fixture.resolvedTeam1, fixture.resolvedTeam2]),
+    );
   const actualSets = {
-    qf: new Set(actualResolved.slice(88, 96).flatMap((m) => [m.resolvedTeam1, m.resolvedTeam2])),
-    sf: new Set(actualResolved.slice(96, 100).flatMap((m) => [m.resolvedTeam1, m.resolvedTeam2])),
-    final: new Set(actualResolved.slice(100, 102).flatMap((m) => [m.resolvedTeam1, m.resolvedTeam2])),
+    qf: teamsInFixtures(actualResolved, [97, 98, 99, 100]),
+    sf: teamsInFixtures(actualResolved, [101, 102]),
+    final: teamsInFixtures(actualResolved, [104]),
   };
   const predictedSets = {
-    qf: new Set(predictedResolved.slice(88, 96).flatMap((m) => [m.resolvedTeam1, m.resolvedTeam2])),
-    sf: new Set(predictedResolved.slice(96, 100).flatMap((m) => [m.resolvedTeam1, m.resolvedTeam2])),
-    final: new Set(predictedResolved.slice(100, 102).flatMap((m) => [m.resolvedTeam1, m.resolvedTeam2])),
+    qf: teamsInFixtures(predictedResolved, [97, 98, 99, 100]),
+    sf: teamsInFixtures(predictedResolved, [101, 102]),
+    final: teamsInFixtures(predictedResolved, [104]),
   };
 
   predictedSets.qf.forEach((team) => {
