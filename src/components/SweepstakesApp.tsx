@@ -1127,6 +1127,15 @@ function MatchDayView({
   resultsSyncing: boolean;
   ownSubmissionId?: string | null;
 }) {
+  const resultsResolved = useMemo(
+    () => new Map(resolveFixtures(results.matches).map((f) => [f.id, f])),
+    [results.matches],
+  );
+  const resolvedTeamOrTbc = (fixtureId: number, side: "resolvedTeam1" | "resolvedTeam2") => {
+    const team = resultsResolved.get(fixtureId)?.[side] ?? "";
+    return !team || /^[WL\d]|^\d[A-L]/.test(team) ? "TBC" : team;
+  };
+
   const matchDays = useMemo(
     () =>
       Array.from(
@@ -1220,7 +1229,7 @@ function MatchDayView({
                     </div>
                     <div className="match-scoreline">
                       <div className="scoreline-home">
-                        <TeamLabel team={result?.team1 ?? fixture.resolvedTeam1} />
+                        <TeamLabel team={result?.team1 ?? resolvedTeamOrTbc(fixture.id, "resolvedTeam1")} />
                       </div>
                       <div className="scoreline-box">
                         <b>{result != null ? result.home : "·"}</b>
@@ -1228,7 +1237,7 @@ function MatchDayView({
                         <b>{result != null ? result.away : "·"}</b>
                       </div>
                       <div className="scoreline-away">
-                        <TeamLabel team={result?.team2 ?? fixture.resolvedTeam2} />
+                        <TeamLabel team={result?.team2 ?? resolvedTeamOrTbc(fixture.id, "resolvedTeam2")} />
                       </div>
                     </div>
                   </div>
