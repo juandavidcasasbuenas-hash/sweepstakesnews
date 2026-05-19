@@ -1127,11 +1127,13 @@ function MatchDayView({
   resultsSyncing: boolean;
   ownSubmissionId?: string | null;
 }) {
+  const resultsResolved = useMemo(
+    () => new Map(resolveFixtures(results.matches).map((f) => [f.id, f])),
+    [results.matches],
+  );
   const resolvedTeamOrTbc = (fixture: ResolvedFixture, side: "resolvedTeam1" | "resolvedTeam2") => {
-    const result = results.matches[fixture.id];
-    if (result) return side === "resolvedTeam1" ? (result.team1 ?? "TBC") : (result.team2 ?? "TBC");
-    if (fixture.stage !== "group") return "TBC";
-    return fixture[side];
+    const team = resultsResolved.get(fixture.id)?.[side] ?? "";
+    return !team || /^([WL]\d+|\d[A-L])/.test(team) ? "TBC" : team;
   };
 
   const matchDays = useMemo(
