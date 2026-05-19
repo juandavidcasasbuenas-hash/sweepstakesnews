@@ -47,11 +47,21 @@ export type Submission = {
 
 export type ResultMatch = {
   fixtureId: number;
+  providerId?: number;
+  providerMatchNumber?: number;
   team1?: string;
   team2?: string;
   home: number;
   away: number;
   winner?: string;
+  status?: "scheduled" | "live" | "completed" | string;
+  phase?: "PRE" | "1H" | "HT" | "2H" | "ET1" | "ET2" | "PEN" | "FT_PEN" | string;
+  matchMinute?: number | null;
+  homePen?: number | null;
+  awayPen?: number | null;
+  kickoffInSeconds?: number | null;
+  nextPhaseInSeconds?: number | null;
+  sandbox?: boolean;
 };
 
 export type TournamentResults = {

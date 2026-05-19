@@ -59,8 +59,14 @@ Local test paths:
 ```bash
 curl "http://localhost:3000/api/cron/update-results?sample=1"
 curl "http://localhost:3000/api/results/live?refresh=1"
+curl "http://localhost:3000/api/results/live?test=1"
+curl "http://localhost:3000/api/sandbox/match"
 ```
 
 The sample path seeds deterministic local results. The live path calls the
 configured results provider (`RESULTS_API_URL`, `WC2026_API_KEY`, or
 `API_FOOTBALL_KEY`) and stores the normalized response.
+
+The `test=1` live path and `/api/sandbox/match` use the WC2026 API sandbox
+match when `WC2026_API_KEY` is configured. They are read-only test paths and do
+not write sandbox scores to Supabase.

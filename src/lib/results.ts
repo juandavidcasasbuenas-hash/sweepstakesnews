@@ -15,6 +15,10 @@ let localResults = emptyResults;
 let lastProviderCallMs = 0;
 let inFlightProviderCall: Promise<TournamentResults> | null = null;
 const MIN_PROVIDER_INTERVAL_MS = 15_000;
+const WC2026_API_BASE = "https://api.wc2026api.com";
+const SANDBOX_CYCLE_MINUTES = 160;
+const SANDBOX_PHASE_MINUTES = SANDBOX_CYCLE_MINUTES / 8;
+const SANDBOX_PHASES = ["PRE", "1H", "HT", "2H", "ET1", "ET2", "PEN", "FT_PEN"] as const;
 
 type ResultsRead = {
   mode: "local" | "supabase";
@@ -60,6 +64,13 @@ function firstString(...values: unknown[]) {
   return undefined;
 }
 
+function firstBoolean(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "boolean") return value;
+  }
+  return undefined;
+}
+
 function nested(source: Record<string, unknown>, key: string) {
   return asRecord(source[key]);
 }
@@ -84,27 +95,39 @@ function findFixture(fixtureId?: number, team1?: string, team2?: string) {
   return byId ?? findFixtureByTeams(team1, team2);
 }
 
+function knownFixtureId(fixtureId?: number) {
+  return typeof fixtureId === "number" && fixtures.some((fixture) => fixture.id === fixtureId);
+}
+
 function inferWinner(home: number, away: number, team1?: string, team2?: string) {
   if (home > away) return team1;
   if (away > home) return team2;
   return undefined;
 }
 
-function resultFromRow(row: unknown) {
+type NormalizeOptions = {
+  overrideFixtureId?: number;
+  allowUnmapped?: boolean;
+};
+
+function resultFromRow(row: unknown, options: NormalizeOptions = {}) {
   const source = asRecord(row);
   const goals = nested(source, "goals");
   const score = nested(source, "score");
   const scores = nested(source, "scores");
   const fullTime = nested(score, "fullTime");
 
-  const fixtureId = firstNumber(
-    source.fixtureId,
-    source.match_number,
-    source.matchNumber,
-    source.number,
-    source.match,
-  );
-  const fallbackId = firstNumber(source.id);
+  const providerMatchNumber = firstNumber(source.match_number, source.matchNumber);
+  const providerId = firstNumber(source.id);
+  const fixtureId =
+    options.overrideFixtureId ??
+    firstNumber(
+      source.fixtureId,
+      source.match_number,
+      source.matchNumber,
+      source.number,
+      source.match,
+    );
   const team1 = firstString(
     source.team1,
     source.homeTeam,
@@ -143,16 +166,27 @@ function resultFromRow(row: unknown) {
   );
   const homePen = firstNumber(source.homePen, source.home_pen, source.penaltiesHome);
   const awayPen = firstNumber(source.awayPen, source.away_pen, source.penaltiesAway);
+  const status = firstString(source.status);
+  const phase = firstString(source.phase);
+  const matchMinute = firstNumber(source.matchMinute, source.match_minute);
+  const kickoffInSeconds = firstNumber(source.kickoffInSeconds, source.kickoff_in_seconds);
+  const nextPhaseInSeconds = firstNumber(source.nextPhaseInSeconds, source.next_phase_in_seconds);
+  const sandbox = firstBoolean(source.sandbox, source._sandbox);
 
   if (typeof home !== "number" || typeof away !== "number") return undefined;
 
   const fixture = findFixture(fixtureId, team1, team2) ?? findFixtureByTeams(team1, team2);
-  const matchId = fixture?.id ?? fixtureId ?? fallbackId;
+  const matchId =
+    fixture?.id ??
+    (knownFixtureId(fixtureId) ? fixtureId : undefined) ??
+    (options.allowUnmapped ? fixtureId ?? providerId : undefined);
 
   if (!matchId) return undefined;
 
   const result: ResultMatch = {
     fixtureId: matchId,
+    providerId,
+    providerMatchNumber,
     team1: team1 ?? fixture?.team1,
     team2: team2 ?? fixture?.team2,
     home,
@@ -163,6 +197,14 @@ function resultFromRow(row: unknown) {
         ? inferWinner(homePen, awayPen, team1 ?? fixture?.team1, team2 ?? fixture?.team2)
         : undefined) ??
       inferWinner(home, away, team1 ?? fixture?.team1, team2 ?? fixture?.team2),
+    status,
+    phase,
+    matchMinute,
+    homePen,
+    awayPen,
+    kickoffInSeconds,
+    nextPhaseInSeconds,
+    sandbox,
   };
 
   return result;
@@ -175,14 +217,26 @@ function rowsFromPayload(payload: unknown) {
     const value = source[key];
     if (Array.isArray(value)) return value;
   }
+  if (
+    "home_score" in source ||
+    "homeScore" in source ||
+    "away_score" in source ||
+    "awayScore" in source ||
+    "_sandbox" in source
+  ) {
+    return [payload];
+  }
   return [];
 }
 
-export function normalizeGenericJson(payload: unknown): TournamentResults {
+export function normalizeGenericJson(
+  payload: unknown,
+  options: NormalizeOptions = {},
+): TournamentResults {
   const matches: Record<number, ResultMatch> = {};
 
   rowsFromPayload(payload).forEach((row) => {
-    const result = resultFromRow(row);
+    const result = resultFromRow(row, options);
     if (result) matches[result.fixtureId] = result;
   });
 
@@ -231,18 +285,103 @@ async function fetchJson(url: string, init?: RequestInit) {
   return response.json();
 }
 
+function sandboxCycleOffsetMinutes() {
+  const now = new Date();
+  const midnightUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.floor((Date.now() - midnightUtc) / 60_000) % SANDBOX_CYCLE_MINUTES;
+}
+
+function sandboxMatchMinute(phase: (typeof SANDBOX_PHASES)[number], offsetInPhase: number) {
+  const pct = offsetInPhase / SANDBOX_PHASE_MINUTES;
+  if (phase === "1H") return Math.max(1, Math.ceil(pct * 45));
+  if (phase === "HT") return 45;
+  if (phase === "2H") return Math.max(46, Math.ceil(pct * 45) + 45);
+  if (phase === "ET1") return Math.max(91, Math.ceil(pct * 15) + 90);
+  if (phase === "ET2") return Math.max(106, Math.ceil(pct * 15) + 105);
+  return null;
+}
+
+export function localWc2026TestMatch() {
+  const offset = sandboxCycleOffsetMinutes();
+  const phaseIndex = Math.floor(offset / SANDBOX_PHASE_MINUTES);
+  const offsetInPhase = offset % SANDBOX_PHASE_MINUTES;
+  const phase = SANDBOX_PHASES[phaseIndex];
+  const matchMinute = sandboxMatchMinute(phase, offsetInPhase);
+  const phasesPast = (target: (typeof SANDBOX_PHASES)[number]) =>
+    SANDBOX_PHASES.slice(0, phaseIndex + 1).includes(target);
+  const homeScore =
+    phasesPast("HT") || (phase === "1H" && matchMinute != null && matchMinute >= 23) ? 1 : 0;
+  const awayScore =
+    phasesPast("ET1") || (phase === "2H" && matchMinute != null && matchMinute >= 67) ? 1 : 0;
+  const inPenalties = phase === "PEN" || phase === "FT_PEN";
+
+  return {
+    _sandbox: true,
+    id: 9999,
+    match_number: 999,
+    round: "final",
+    group_name: null,
+    home_team: "Brazil",
+    home_team_code: "BRA",
+    away_team: "Argentina",
+    away_team_code: "ARG",
+    stadium: "Estadio Azteca",
+    stadium_city: "Mexico City",
+    stadium_country: "Mexico",
+    status: phase === "PRE" ? "scheduled" : phase === "FT_PEN" ? "completed" : "live",
+    phase,
+    match_minute: matchMinute,
+    home_score: homeScore,
+    away_score: awayScore,
+    home_pen: inPenalties ? 3 : null,
+    away_pen: inPenalties ? 5 : null,
+    winner: phase === "FT_PEN" ? "Argentina" : null,
+    next_phase_in_seconds: (SANDBOX_PHASE_MINUTES - offsetInPhase) * 60,
+  };
+}
+
+function wc2026Headers() {
+  return { authorization: `Bearer ${process.env.WC2026_API_KEY}` };
+}
+
+export async function fetchWc2026TestMatch() {
+  if (!process.env.WC2026_API_KEY) {
+    throw new Error("No WC2026 API key configured");
+  }
+  return fetchJson(`${WC2026_API_BASE}/test/match`, {
+    headers: wc2026Headers(),
+  });
+}
+
+async function fetchWc2026Matches() {
+  const endpoint = process.env.WC2026_API_URL ?? `${WC2026_API_BASE}/matches`;
+  return normalizeGenericJson(
+    await fetchJson(endpoint, {
+      headers: wc2026Headers(),
+    }),
+  );
+}
+
+async function fetchWc2026TestResults() {
+  let payload: unknown;
+  try {
+    payload = await fetchWc2026TestMatch();
+  } catch {
+    payload = localWc2026TestMatch();
+  }
+
+  return normalizeGenericJson(payload, {
+    overrideFixtureId: 104,
+  });
+}
+
 async function fetchConfiguredResultsProvider() {
   if (process.env.RESULTS_API_URL) {
     return normalizeGenericJson(await fetchJson(process.env.RESULTS_API_URL));
   }
 
   if (process.env.WC2026_API_KEY) {
-    const endpoint = process.env.WC2026_API_URL ?? "https://api.wc2026api.com/matches";
-    return normalizeGenericJson(
-      await fetchJson(endpoint, {
-        headers: { authorization: `Bearer ${process.env.WC2026_API_KEY}` },
-      }),
-    );
+    return fetchWc2026Matches();
   }
 
   if (process.env.API_FOOTBALL_KEY) {
@@ -351,11 +490,22 @@ function liveCacheMs() {
 export async function getLiveResults(request: Request): Promise<LiveResults> {
   const url = new URL(request.url);
   const sampleRefresh = url.searchParams.get("sample") === "1";
+  const testRefresh = url.searchParams.get("test") === "1";
   const forceRefresh =
     url.searchParams.get("refresh") === "1" ||
     sampleRefresh ||
-    url.searchParams.get("test") === "1";
+    testRefresh;
   const stored = await readStoredResults();
+
+  if (testRefresh) {
+    try {
+      return { ...stored, results: await fetchWc2026TestResults(), cached: false, stale: false };
+    } catch (error) {
+      const warning = error instanceof Error ? error.message : "Could not load sandbox match";
+      return { ...stored, cached: true, stale: hasResults(stored.results), warning };
+    }
+  }
+
   const currentHasResults = hasResults(stored.results);
   const currentAgeMs = cacheAgeMs(stored.results);
   const currentIsFresh = hasCacheTimestamp(stored.results) && currentAgeMs <= liveCacheMs();

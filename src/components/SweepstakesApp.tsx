@@ -148,10 +148,6 @@ function normalizeNumber(value: string): number | "" {
   return Math.min(15, Math.floor(parsed));
 }
 
-function formatDate(fixture: ResolvedFixture) {
-  return `${fixture.date.replace("2026-", "")} · ${fixture.time.replace(" UTC", " UTC")}`;
-}
-
 function flagUrlFor(team: string) {
   const code = teamFlagCodes[team];
   return code ? `https://flagcdn.com/w40/${code}.png` : "";
@@ -306,10 +302,26 @@ function pickOutcome(pick?: MatchPick) {
 
 function resultOutcome(result?: TournamentResults["matches"][number]) {
   if (!result) return "Awaiting result";
+  if (result.status === "live") {
+    const phase = result.phase ? ` ${result.phase}` : "";
+    const minute = typeof result.matchMinute === "number" ? ` · min ${result.matchMinute}` : "";
+    return `Live${phase}${minute}`;
+  }
+  if (result.status === "scheduled") return "Scheduled";
   if (result.winner) return `${result.winner} won`;
   if (result.home > result.away) return "Home win";
   if (result.away > result.home) return "Away win";
   return "Draw";
+}
+
+function friendlyResultsWarning(message: string) {
+  if (message.includes("Results provider returned no scored matches")) {
+    return "No official scores available yet. Live scoring will update once matches begin.";
+  }
+  if (message.includes("returned 429")) {
+    return "The official results provider is rate-limiting requests. Saved scores are still available.";
+  }
+  return message;
 }
 
 function matchPickClass(pick?: MatchPick, result?: TournamentResults["matches"][number]) {
@@ -1780,10 +1792,11 @@ export default function SweepstakesApp() {
     }
 
     if (payload.warning) {
+      const warning = friendlyResultsWarning(payload.warning);
       setResultsStatus(
         resultCount
-          ? `Using saved results. Live refresh warning: ${payload.warning}`
-          : `Live refresh warning: ${payload.warning}`,
+          ? `Using saved results. ${warning}`
+          : warning,
       );
       return;
     }
@@ -1818,7 +1831,7 @@ export default function SweepstakesApp() {
         return payload;
       } catch (error) {
         const message = error instanceof Error ? error.message : "Could not refresh live results";
-        setResultsStatus(`Live refresh warning: ${message}`);
+        setResultsStatus(friendlyResultsWarning(message));
         return { warning: message } satisfies ResultsPayload;
       } finally {
         setResultsSyncing(false);
