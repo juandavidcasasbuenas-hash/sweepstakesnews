@@ -99,12 +99,12 @@ function resultFromRow(row: unknown) {
 
   const fixtureId = firstNumber(
     source.fixtureId,
-    source.match,
-    source.id,
     source.match_number,
     source.matchNumber,
     source.number,
+    source.match,
   );
+  const fallbackId = firstNumber(source.id);
   const team1 = firstString(
     source.team1,
     source.homeTeam,
@@ -146,10 +146,9 @@ function resultFromRow(row: unknown) {
 
   if (typeof home !== "number" || typeof away !== "number") return undefined;
 
-  const fixture = findFixture(fixtureId, team1, team2);
-  if (!fixture && !fixtureId) return undefined;
+  const fixture = findFixture(fixtureId, team1, team2) ?? findFixtureByTeams(team1, team2);
+  const matchId = fixture?.id ?? fixtureId ?? fallbackId;
 
-  const matchId = fixture?.id ?? fixtureId;
   if (!matchId) return undefined;
 
   const result: ResultMatch = {
@@ -324,6 +323,10 @@ export async function writeStoredResults(results: TournamentResults): Promise<Re
 
 export async function refreshStoredResults(request: Request) {
   const results = await fetchResultsFromProvider(request);
+  const isSample = new URL(request.url).searchParams.get("sample") === "1";
+  if (!isSample && !hasResults(results)) {
+    throw new Error("Results provider returned no scored matches");
+  }
   return writeStoredResults(results);
 }
 
