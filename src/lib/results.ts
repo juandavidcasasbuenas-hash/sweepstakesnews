@@ -1,5 +1,5 @@
 import { fixtures } from "@/data/fixtures";
-import { emptyBonuses, sampleResults } from "@/lib/tournament";
+import { emptyBonuses, FIRST_KICK_OFF_ISO, sampleResults } from "@/lib/tournament";
 import { getSupabase } from "@/lib/supabase";
 import type { Fixture, ResultMatch, TournamentResults } from "@/types/game";
 
@@ -15,7 +15,9 @@ let localResults = emptyResults;
 let lastProviderCallMs = 0;
 let inFlightProviderCall: Promise<TournamentResults> | null = null;
 const MIN_PROVIDER_INTERVAL_MS = 15_000;
+const MIN_PROVIDER_CACHE_SECONDS = 1_800;
 const WC2026_API_BASE = "https://api.wc2026api.com";
+const FINAL_REFRESH_UNTIL_ISO = "2026-07-20T06:00:00.000Z";
 const SANDBOX_CYCLE_MINUTES = 160;
 const SANDBOX_PHASE_MINUTES = SANDBOX_CYCLE_MINUTES / 8;
 const SANDBOX_PHASES = ["PRE", "1H", "HT", "2H", "ET1", "ET2", "PEN", "FT_PEN"] as const;
@@ -25,7 +27,9 @@ type ResultsRead = {
   results: TournamentResults;
 };
 
-type ResultsWrite = ResultsRead;
+type ResultsWrite = ResultsRead & {
+  warning?: string;
+};
 
 type LiveResults = ResultsRead & {
   cached: boolean;
@@ -75,18 +79,62 @@ function nested(source: Record<string, unknown>, key: string) {
   return asRecord(source[key]);
 }
 
+const teamNameAliases: Record<string, string> = {
+  bosniaandherzegovina: "bosniaherzegovina",
+  bosniaherzegovina: "bosniaherzegovina",
+  congodr: "drcongo",
+  czechia: "czechrepublic",
+  ivorycoast: "ivorycoast",
+  cotedivoire: "ivorycoast",
+  korearepublic: "southkorea",
+  republicofkorea: "southkorea",
+  turkiye: "turkey",
+  unitedstates: "usa",
+  unitedstatesofamerica: "usa",
+  us: "usa",
+};
+
+function teamNameKey(value?: string) {
+  const normalized = value
+    ?.trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]/g, "");
+  if (!normalized) return undefined;
+  return teamNameAliases[normalized] ?? normalized;
+}
+
 function normalizeTeamName(value?: string) {
-  return value?.trim().toLowerCase();
+  return value?.trim();
+}
+
+function teamNamesEqual(team1?: string, team2?: string) {
+  const first = teamNameKey(team1);
+  const second = teamNameKey(team2);
+  return Boolean(first && second && first === second);
+}
+
+function isPlaceholderTeam(team?: string) {
+  return Boolean(team?.replace(/\s/g, "").match(/^([WL]\d+|[123][A-L/]+)$/));
+}
+
+function fixtureDisplayTeam(team?: string) {
+  return isPlaceholderTeam(team) ? undefined : team;
+}
+
+function localizeProviderTeam(providerTeam?: string, fixtureTeam?: string) {
+  if (fixtureTeam && teamNamesEqual(providerTeam, fixtureTeam)) return fixtureTeam;
+  return providerTeam ?? fixtureTeam;
 }
 
 function findFixtureByTeams(team1?: string, team2?: string) {
-  const home = normalizeTeamName(team1);
-  const away = normalizeTeamName(team2);
-  if (!home || !away) return undefined;
+  if (!normalizeTeamName(team1) || !normalizeTeamName(team2)) return undefined;
   return fixtures.find(
     (fixture) =>
-      normalizeTeamName(fixture.team1) === home &&
-      normalizeTeamName(fixture.team2) === away,
+      teamNamesEqual(fixture.team1, team1) &&
+      teamNamesEqual(fixture.team2, team2),
   );
 }
 
@@ -103,6 +151,13 @@ function inferWinner(home: number, away: number, team1?: string, team2?: string)
   if (home > away) return team1;
   if (away > home) return team2;
   return undefined;
+}
+
+function localizeWinner(winner: string | undefined, team1?: string, team2?: string) {
+  if (!winner) return undefined;
+  if (teamNamesEqual(winner, team1)) return team1;
+  if (teamNamesEqual(winner, team2)) return team2;
+  return winner;
 }
 
 type NormalizeOptions = {
@@ -183,20 +238,28 @@ function resultFromRow(row: unknown, options: NormalizeOptions = {}) {
 
   if (!matchId) return undefined;
 
+  const resultTeam1 = localizeProviderTeam(team1, fixtureDisplayTeam(fixture?.team1));
+  const resultTeam2 = localizeProviderTeam(team2, fixtureDisplayTeam(fixture?.team2));
+  const explicitWinner = localizeWinner(
+    firstString(source.winner, source.winningTeam, source.winner_name),
+    resultTeam1,
+    resultTeam2,
+  );
+
   const result: ResultMatch = {
     fixtureId: matchId,
     providerId,
     providerMatchNumber,
-    team1: team1 ?? fixture?.team1,
-    team2: team2 ?? fixture?.team2,
+    team1: resultTeam1,
+    team2: resultTeam2,
     home,
     away,
     winner:
-      firstString(source.winner, source.winningTeam, source.winner_name) ??
+      explicitWinner ??
       (home === away && typeof homePen === "number" && typeof awayPen === "number"
-        ? inferWinner(homePen, awayPen, team1 ?? fixture?.team1, team2 ?? fixture?.team2)
+        ? inferWinner(homePen, awayPen, resultTeam1, resultTeam2)
         : undefined) ??
-      inferWinner(home, away, team1 ?? fixture?.team1, team2 ?? fixture?.team2),
+      inferWinner(home, away, resultTeam1, resultTeam2),
     status,
     phase,
     matchMinute,
@@ -234,6 +297,7 @@ export function normalizeGenericJson(
   options: NormalizeOptions = {},
 ): TournamentResults {
   const matches: Record<number, ResultMatch> = {};
+  const checkedAt = new Date().toISOString();
 
   rowsFromPayload(payload).forEach((row) => {
     const result = resultFromRow(row, options);
@@ -243,7 +307,8 @@ export function normalizeGenericJson(
   return {
     matches,
     bonuses: emptyBonuses(),
-    updatedAt: new Date().toISOString(),
+    updatedAt: checkedAt,
+    providerCheckedAt: checkedAt,
   };
 }
 
@@ -276,7 +341,8 @@ export function normalizeApiFootball(payload: unknown): TournamentResults {
     };
   });
 
-  return { matches, bonuses: emptyBonuses(), updatedAt: new Date().toISOString() };
+  const checkedAt = new Date().toISOString();
+  return { matches, bonuses: emptyBonuses(), updatedAt: checkedAt, providerCheckedAt: checkedAt };
 }
 
 async function fetchJson(url: string, init?: RequestInit) {
@@ -354,7 +420,7 @@ export async function fetchWc2026TestMatch() {
 }
 
 async function fetchWc2026Matches() {
-  const endpoint = process.env.WC2026_API_URL ?? `${WC2026_API_BASE}/matches`;
+  const endpoint = process.env.WC2026_API_URL ?? `${WC2026_API_BASE}/matches?status=completed`;
   return normalizeGenericJson(
     await fetchJson(endpoint, {
       headers: wc2026Headers(),
@@ -461,10 +527,18 @@ export async function writeStoredResults(results: TournamentResults): Promise<Re
 }
 
 export async function refreshStoredResults(request: Request) {
-  const results = await fetchResultsFromProvider(request);
   const isSample = new URL(request.url).searchParams.get("sample") === "1";
+  const pollingWarning = !isSample ? providerPollingWindowWarning() : undefined;
+  if (pollingWarning) {
+    const cached = await cacheProviderWarning(await readStoredResults(), pollingWarning);
+    return { ...cached, warning: pollingWarning };
+  }
+
+  const results = await fetchResultsFromProvider(request);
   if (!isSample && !hasResults(results)) {
-    throw new Error("Results provider returned no scored matches");
+    const warning = "Results provider returned no scored matches";
+    const cached = await cacheProviderWarning(await readStoredResults(), warning);
+    return { ...cached, warning };
   }
   return writeStoredResults(results);
 }
@@ -473,18 +547,62 @@ function hasResults(results: TournamentResults) {
   return Object.keys(results.matches ?? {}).length > 0;
 }
 
-function cacheAgeMs(results: TournamentResults) {
+function providerCheckTimestamp(results: TournamentResults) {
+  const providerCheckedAt = new Date(results.providerCheckedAt ?? "").getTime();
+  if (Number.isFinite(providerCheckedAt)) return providerCheckedAt;
   const updatedAt = new Date(results.updatedAt).getTime();
-  return Number.isFinite(updatedAt) ? Date.now() - updatedAt : Number.POSITIVE_INFINITY;
+  return Number.isFinite(updatedAt) ? updatedAt : Number.NaN;
+}
+
+function cacheAgeMs(results: TournamentResults) {
+  const checkedAt = providerCheckTimestamp(results);
+  return Number.isFinite(checkedAt) ? Date.now() - checkedAt : Number.POSITIVE_INFINITY;
 }
 
 function hasCacheTimestamp(results: TournamentResults) {
-  return Number.isFinite(new Date(results.updatedAt).getTime());
+  return Number.isFinite(providerCheckTimestamp(results));
 }
 
 function liveCacheMs() {
-  const seconds = Number(process.env.RESULTS_CACHE_SECONDS ?? 90);
-  return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : 90_000;
+  const seconds = Number(process.env.RESULTS_CACHE_SECONDS ?? MIN_PROVIDER_CACHE_SECONDS);
+  const safeSeconds = Number.isFinite(seconds) && seconds >= 0 ? seconds : MIN_PROVIDER_CACHE_SECONDS;
+  return Math.max(safeSeconds, MIN_PROVIDER_CACHE_SECONDS) * 1000;
+}
+
+function utcDateOffset(date: Date, days: number) {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next.toISOString().slice(0, 10);
+}
+
+function providerPollingWindowWarning(now = new Date()) {
+  if (now.getTime() < new Date(FIRST_KICK_OFF_ISO).getTime()) {
+    return "Official results refresh is paused until the first match kicks off on 11 June 2026.";
+  }
+  if (now.getTime() > new Date(FINAL_REFRESH_UNTIL_ISO).getTime()) {
+    return "Official results refresh is paused because the tournament has finished.";
+  }
+
+  const activeDates = new Set([
+    utcDateOffset(now, -1),
+    utcDateOffset(now, 0),
+    utcDateOffset(now, 1),
+  ]);
+  const isNearMatchDay = fixtures.some((fixture) => activeDates.has(fixture.date));
+  return isNearMatchDay ? undefined : "Official results refresh is paused until the next match day.";
+}
+
+async function cacheProviderWarning(stored: ResultsRead, warning: string) {
+  const results = {
+    ...stored.results,
+    providerCheckedAt: new Date().toISOString(),
+    providerWarning: warning,
+  };
+  try {
+    return await writeStoredResults(results);
+  } catch {
+    return stored;
+  }
 }
 
 export async function getLiveResults(request: Request): Promise<LiveResults> {
@@ -509,22 +627,48 @@ export async function getLiveResults(request: Request): Promise<LiveResults> {
   const currentHasResults = hasResults(stored.results);
   const currentAgeMs = cacheAgeMs(stored.results);
   const currentIsFresh = hasCacheTimestamp(stored.results) && currentAgeMs <= liveCacheMs();
+  const pollingWarning = !sampleRefresh ? providerPollingWindowWarning() : undefined;
 
   if (!forceRefresh && currentIsFresh) {
-    return { ...stored, cached: true, stale: false };
+    return {
+      ...stored,
+      cached: true,
+      stale: false,
+      warning: stored.results.providerWarning,
+    };
   }
 
-  if (!sampleRefresh && forceRefresh && currentIsFresh && currentAgeMs < MIN_PROVIDER_INTERVAL_MS) {
-    return { ...stored, cached: true, stale: false };
+  if (pollingWarning) {
+    return {
+      ...stored,
+      cached: true,
+      stale: currentHasResults,
+      warning: pollingWarning,
+    };
+  }
+
+  if (!sampleRefresh && currentIsFresh) {
+    return {
+      ...stored,
+      cached: true,
+      stale: false,
+      warning: stored.results.providerWarning,
+    };
   }
 
   try {
     const refreshed = await refreshStoredResults(request);
-    return { ...refreshed, cached: false, stale: false };
+    return {
+      ...refreshed,
+      cached: Boolean(refreshed.warning),
+      stale: Boolean(refreshed.warning && currentHasResults),
+      warning: refreshed.warning,
+    };
   } catch (error) {
     const warning = error instanceof Error ? error.message : "Could not refresh results";
+    const cached = await cacheProviderWarning(stored, warning);
     return {
-      ...stored,
+      ...cached,
       cached: true,
       stale: currentHasResults,
       warning,

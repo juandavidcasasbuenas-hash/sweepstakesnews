@@ -70,3 +70,12 @@ configured results provider (`RESULTS_API_URL`, `WC2026_API_KEY`, or
 The `test=1` live path and `/api/sandbox/match` use the WC2026 API sandbox
 match when `WC2026_API_KEY` is configured. They are read-only test paths and do
 not write sandbox scores to Supabase.
+
+Provider calls are deliberately throttled for the WC2026 free tier:
+
+- The app will not call the real results provider before the first kick-off.
+- It only refreshes near match days during the tournament.
+- Provider checks are cached in Supabase for at least 30 minutes, even if the
+  provider returns no completed matches or a rate-limit warning.
+- `RESULTS_CACHE_SECONDS` can be set higher, but values below 1800 seconds are
+  clamped to 1800 to protect the API key.

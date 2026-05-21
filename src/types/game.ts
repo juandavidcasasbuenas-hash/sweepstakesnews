@@ -68,6 +68,8 @@ export type TournamentResults = {
   matches: Record<number, ResultMatch>;
   bonuses: BonusPicks;
   updatedAt: string;
+  providerCheckedAt?: string;
+  providerWarning?: string;
 };
 
 export type TeamStanding = {
