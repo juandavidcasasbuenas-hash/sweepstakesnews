@@ -17,10 +17,12 @@ import {
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { fixtureKickoffDate } from "@/lib/fixture-time";
 import {
   autofillTournament,
   calculateGroupStandings,
   createEmptyPicks,
+  displayMatchNumber,
   emptyBonuses,
   FIRST_KICK_OFF_ISO,
   groupTeams,
@@ -132,24 +134,6 @@ const teamFlagCodes: Record<string, string> = {
 
 function isLocked() {
   return Date.now() >= new Date(FIRST_KICK_OFF_ISO).getTime();
-}
-
-function fixtureKickoffDate(fixture: Pick<ResolvedFixture, "date" | "time">) {
-  const match = fixture.time.match(/^(\d{1,2}):(\d{2}) UTC([+-]\d{1,2})$/);
-  if (!match) return null;
-
-  const [, hour, minute, offset] = match;
-  const utcMs =
-    Date.UTC(
-      Number(fixture.date.slice(0, 4)),
-      Number(fixture.date.slice(5, 7)) - 1,
-      Number(fixture.date.slice(8, 10)),
-      Number(hour),
-      Number(minute),
-    ) -
-    Number(offset) * 60 * 60 * 1000;
-
-  return new Date(utcMs);
 }
 
 function formatFixtureDate(fixture: Pick<ResolvedFixture, "date" | "time">) {
@@ -582,7 +566,7 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
         const pick = submission.picks[fixture.id];
         return `
           <tr>
-            <td>M${fixture.id}</td>
+            <td>Match ${displayMatchNumber(fixture)}</td>
             <td>${escapeHtml(fixture.round)}</td>
             <td>${escapeHtml(fixture.resolvedTeam1)}</td>
             <td class="score">${escapeHtml(fixture.stage === "group" ? pickScore(pick) : knockoutPickLabel(pick))}</td>
@@ -607,7 +591,7 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
 
                 return `
                   <article class="tree-match">
-                    <div class="tree-meta">M${fixture.id} - ${escapeHtml(fixture.round)} - ${escapeHtml(knockoutPickLabel(pick))}</div>
+                    <div class="tree-meta">Match ${displayMatchNumber(fixture)} - ${escapeHtml(fixture.round)} - ${escapeHtml(knockoutPickLabel(pick))}</div>
                     <div class="tree-team ${winner === fixture.resolvedTeam1 ? "tree-winner" : ""}">
                       <span>${escapeHtml(fixture.resolvedTeam1)}</span>
                       <b>${pick?.home === "" || pick?.home === undefined ? "?" : escapeHtml(pick.home)}</b>
@@ -935,7 +919,7 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
                         const pick = submission.picks[fixture.id];
                         return `
                           <tr>
-                            <td>M${fixture.id}</td>
+                            <td>Match ${displayMatchNumber(fixture)}</td>
                             <td>${escapeHtml(fixture.resolvedTeam1)}</td>
                             <td class="score">${escapeHtml(pickScore(pick))}</td>
                             <td>${escapeHtml(fixture.resolvedTeam2)}</td>
@@ -1057,7 +1041,7 @@ function FixtureCard({
 
   return (
     <article className="fixture-card">
-      <span className="match-chip">M{fixture.id}</span>
+      <span className="match-chip">Match {displayMatchNumber(fixture)}</span>
       <div className="fixture-home">
         <TeamLabel team={fixture.resolvedTeam1} />
       </div>
@@ -1274,7 +1258,7 @@ function MatchDayView({
                 <article className="matchday-fixture" key={fixture.id}>
                   <div className="matchday-fixture-head">
                     <div className="fixture-meta">
-                      <span className="match-chip">M{fixture.id}</span>
+                      <span className="match-chip">Match {displayMatchNumber(fixture)}</span>
                       <span>{fixture.round}</span>
                       <span className="venue-chip">{formatFixtureTime(fixture)}</span>
                       <span className={`result-pill${result ? " result-pill-in" : ""}`}>

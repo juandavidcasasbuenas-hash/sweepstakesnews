@@ -1,5 +1,11 @@
 import { fixtures } from "@/data/fixtures";
-import { emptyBonuses, FIRST_KICK_OFF_ISO, sampleResults } from "@/lib/tournament";
+import {
+  displayMatchNumber,
+  emptyBonuses,
+  FIRST_KICK_OFF_ISO,
+  fixtureFromProviderMatchNumber,
+  sampleResults,
+} from "@/lib/tournament";
 import { getSupabase } from "@/lib/supabase";
 import type { Fixture, ResultMatch, TournamentResults } from "@/types/game";
 
@@ -174,12 +180,11 @@ function resultFromRow(row: unknown, options: NormalizeOptions = {}) {
 
   const providerMatchNumber = firstNumber(source.match_number, source.matchNumber);
   const providerId = firstNumber(source.id);
-  const fixtureId =
+  const explicitFixtureId =
     options.overrideFixtureId ??
+    firstNumber(source.fixtureId);
+  const looseFixtureId =
     firstNumber(
-      source.fixtureId,
-      source.match_number,
-      source.matchNumber,
       source.number,
       source.match,
     );
@@ -230,11 +235,16 @@ function resultFromRow(row: unknown, options: NormalizeOptions = {}) {
 
   if (typeof home !== "number" || typeof away !== "number") return undefined;
 
-  const fixture = findFixture(fixtureId, team1, team2) ?? findFixtureByTeams(team1, team2);
+  const fixture =
+    findFixture(explicitFixtureId, team1, team2) ??
+    findFixtureByTeams(team1, team2) ??
+    fixtureFromProviderMatchNumber(providerMatchNumber) ??
+    findFixture(looseFixtureId, team1, team2);
   const matchId =
     fixture?.id ??
-    (knownFixtureId(fixtureId) ? fixtureId : undefined) ??
-    (options.allowUnmapped ? fixtureId ?? providerId : undefined);
+    (knownFixtureId(explicitFixtureId) ? explicitFixtureId : undefined) ??
+    (knownFixtureId(looseFixtureId) ? looseFixtureId : undefined) ??
+    (options.allowUnmapped ? explicitFixtureId ?? looseFixtureId ?? providerId : undefined);
 
   if (!matchId) return undefined;
 
@@ -679,7 +689,7 @@ export async function getLiveResults(request: Request): Promise<LiveResults> {
 export function mapProviderFixture(fixture: Fixture) {
   return {
     fixtureId: fixture.id,
-    match_number: fixture.id,
+    match_number: displayMatchNumber(fixture),
     home_team: fixture.team1,
     away_team: fixture.team2,
   };

@@ -905,7 +905,7 @@ h1 {
 
 .fixture-card {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(74px, auto) minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 0 0.45rem;
   padding: 0.38rem 0.65rem;
@@ -953,7 +953,7 @@ h1 {
 .match-chip {
   display: inline-grid;
   place-items: center;
-  min-width: 40px;
+  min-width: 74px;
   min-height: 22px;
   padding: 0 0.38rem;
   justify-self: start;

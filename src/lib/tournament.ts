@@ -1,6 +1,8 @@
 import { fixtures } from "@/data/fixtures";
+import { fixtureKickoffDate } from "@/lib/fixture-time";
 import type {
   BonusPicks,
+  Fixture,
   MatchPick,
   ResolvedFixture,
   ResultMatch,
@@ -38,8 +40,29 @@ export const scoringRules = {
 
 const letters = "ABCDEFGHIJKL".split("");
 
+const fixturesInMatchNumberOrder = [...fixtures].sort((a, b) => {
+  const aKickoff = fixtureKickoffDate(a)?.getTime() ?? new Date(`${a.date}T12:00:00Z`).getTime();
+  const bKickoff = fixtureKickoffDate(b)?.getTime() ?? new Date(`${b.date}T12:00:00Z`).getTime();
+  return aKickoff - bKickoff || a.id - b.id;
+});
+const matchNumberByFixtureId = new Map(
+  fixturesInMatchNumberOrder.map((fixture, index) => [fixture.id, index + 1]),
+);
+const fixtureByMatchNumber = new Map(
+  fixturesInMatchNumberOrder.map((fixture, index) => [index + 1, fixture]),
+);
+
 export function emptyBonuses(): BonusPicks {
   return { topScorer: "", goldenBall: "", mostGoalsTeam: "" };
+}
+
+export function displayMatchNumber(fixture: Pick<Fixture, "id">) {
+  return matchNumberByFixtureId.get(fixture.id) ?? fixture.id;
+}
+
+export function fixtureFromProviderMatchNumber(matchNumber?: number) {
+  if (typeof matchNumber !== "number") return undefined;
+  return fixtureByMatchNumber.get(matchNumber);
 }
 
 export function groupFixtures() {
