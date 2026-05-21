@@ -77,7 +77,7 @@ export async function DELETE(request: Request) {
     : [];
 
   if (body.all) {
-    const { error } = await supabase.from("submissions").delete().neq("id", "");
+    const { error } = await supabase.from("submissions").delete().not("id", "is", null);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ mode: "supabase", deleted: "all" });
   }
