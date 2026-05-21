@@ -156,7 +156,9 @@ function formatFixtureTime(fixture: Pick<ResolvedFixture, "date" | "time">) {
   const zone = Intl.DateTimeFormat([], { timeZoneName: "short" })
     .formatToParts(kickoff)
     .find((part) => part.type === "timeZoneName")?.value;
-  return zone ? `${time} ${zone}` : time;
+  const venueTime = fixture.time.match(/^(\d{1,2}:\d{2}) UTC[+-]\d{1,2}$/)?.[1];
+  const viewerTime = zone ? `${time} ${zone}` : time;
+  return venueTime ? `${viewerTime} (${venueTime} local)` : viewerTime;
 }
 
 function readLocal<T>(key: string, fallback: T) {
