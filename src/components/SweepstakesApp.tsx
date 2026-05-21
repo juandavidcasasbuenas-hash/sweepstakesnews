@@ -1791,9 +1791,7 @@ export default function SweepstakesApp() {
     if (!apiResults) return;
 
     const resultCount = Object.keys(apiResults.matches ?? {}).length;
-    if (resultCount) {
-      setResults(apiResults);
-    }
+    setResults(apiResults);
 
     if (payload.warning) {
       const warning = friendlyResultsWarning(payload.warning);
