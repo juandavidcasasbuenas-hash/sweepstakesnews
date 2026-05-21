@@ -905,7 +905,7 @@ h1 {
 
 .fixture-card {
   display: grid;
-  grid-template-columns: 26px 1fr auto 1fr;
+  grid-template-columns: 42px minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 0 0.45rem;
   padding: 0.38rem 0.65rem;
@@ -953,16 +953,19 @@ h1 {
 .match-chip {
   display: inline-grid;
   place-items: center;
-  min-width: 30px;
-  min-height: 20px;
-  padding: 0 0.32rem;
+  min-width: 40px;
+  min-height: 22px;
+  padding: 0 0.38rem;
+  justify-self: start;
   border-radius: 2px;
   color: #ffffff;
   background: #111111;
   font-family: var(--font-display), Impact, sans-serif;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.04em;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .venue-chip {
