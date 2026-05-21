@@ -64,6 +64,10 @@ type ResultsPayload = {
   warning?: string;
   results?: TournamentResults;
 };
+type SubmissionsPayload = {
+  mode?: string;
+  submissions?: Submission[];
+};
 
 const groupLetters = "ABCDEFGHIJKL".split("") as PredictionStep[];
 const knockoutPredictionSteps: Array<{ id: PredictionStep; label: string; short: string }> = [
@@ -1864,10 +1868,17 @@ export default function SweepstakesApp() {
       fetch("/api/submissions").then((response) => response.json()),
       fetch("/api/results").then((response) => response.json()),
     ])
-      .then(([submissionPayload, resultPayload]) => {
-        if (submissionPayload.submissions?.length) {
+      .then(([submissionPayload, resultPayload]: [SubmissionsPayload, ResultsPayload]) => {
+        if (Array.isArray(submissionPayload.submissions) && submissionPayload.mode === "supabase") {
+          setSubmissions(submissionPayload.submissions);
+          setSubmittedEntryId((current) =>
+            current && submissionPayload.submissions?.some((submission) => submission.id === current)
+              ? current
+              : null,
+          );
+        } else if (submissionPayload.submissions?.length) {
           setSubmissions((current) => {
-            const merged = [...submissionPayload.submissions] as Submission[];
+            const merged = [...(submissionPayload.submissions ?? [])];
             current.forEach((submission) => {
               if (!merged.some((item) => item.id === submission.id || item.name === submission.name)) {
                 merged.push(submission);
@@ -1918,6 +1929,8 @@ export default function SweepstakesApp() {
     if (!hydrated) return;
     if (submittedEntryId) {
       window.localStorage.setItem(localSubmittedEntryKey, JSON.stringify(submittedEntryId));
+    } else {
+      window.localStorage.removeItem(localSubmittedEntryKey);
     }
   }, [hydrated, submittedEntryId]);
 
