@@ -134,6 +134,47 @@ function isLocked() {
   return Date.now() >= new Date(FIRST_KICK_OFF_ISO).getTime();
 }
 
+function fixtureKickoffDate(fixture: Pick<ResolvedFixture, "date" | "time">) {
+  const match = fixture.time.match(/^(\d{1,2}):(\d{2}) UTC([+-]\d{1,2})$/);
+  if (!match) return null;
+
+  const [, hour, minute, offset] = match;
+  const utcMs =
+    Date.UTC(
+      Number(fixture.date.slice(0, 4)),
+      Number(fixture.date.slice(5, 7)) - 1,
+      Number(fixture.date.slice(8, 10)),
+      Number(hour),
+      Number(minute),
+    ) -
+    Number(offset) * 60 * 60 * 1000;
+
+  return new Date(utcMs);
+}
+
+function formatFixtureDate(fixture: Pick<ResolvedFixture, "date" | "time">) {
+  return (fixtureKickoffDate(fixture) ?? new Date(`${fixture.date}T12:00:00Z`)).toLocaleDateString(
+    [],
+    {
+      month: "short",
+      day: "numeric",
+    },
+  );
+}
+
+function formatFixtureTime(fixture: Pick<ResolvedFixture, "date" | "time">) {
+  const kickoff = fixtureKickoffDate(fixture);
+  if (!kickoff) return fixture.time;
+  const time = kickoff.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const zone = Intl.DateTimeFormat([], { timeZoneName: "short" })
+    .formatToParts(kickoff)
+    .find((part) => part.type === "timeZoneName")?.value;
+  return zone ? `${time} ${zone}` : time;
+}
+
 function readLocal<T>(key: string, fallback: T) {
   if (typeof window === "undefined") return fallback;
   const raw = window.localStorage.getItem(key);
@@ -1190,10 +1231,7 @@ function MatchDayView({
       <div className="matchday-strip" aria-label="Choose match date">
         {matchDays.map(([date, dayFixtures]) => {
           const completed = dayFixtures.filter((fixture) => results.matches[fixture.id]).length;
-          const dateLabel = new Date(`${date}T12:00:00Z`).toLocaleDateString([], {
-            month: "short",
-            day: "numeric",
-          });
+          const dateLabel = dayFixtures[0] ? formatFixtureDate(dayFixtures[0]) : date;
           return (
             <button
               key={date}
@@ -1238,7 +1276,7 @@ function MatchDayView({
                     <div className="fixture-meta">
                       <span className="match-chip">M{fixture.id}</span>
                       <span>{fixture.round}</span>
-                      <span className="venue-chip">{fixture.time}</span>
+                      <span className="venue-chip">{formatFixtureTime(fixture)}</span>
                       <span className={`result-pill${result ? " result-pill-in" : ""}`}>
                         {result ? resultOutcome(result) : "Upcoming"}
                       </span>
