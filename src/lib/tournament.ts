@@ -317,6 +317,10 @@ export function completedMatchCount(picks: Record<number, MatchPick>) {
   return Object.values(picks).filter(scoreComplete).length;
 }
 
+function allResultsPresent(results: TournamentResults, ids: number[]) {
+  return ids.every((id) => scoreComplete(results.matches[id]));
+}
+
 export function scoreSubmission(
   submission: Submission,
   results: TournamentResults,
@@ -385,57 +389,84 @@ export function scoreSubmission(
     }
   }
 
-  const actualQualified = qualifiedTeams(results.matches);
   const predictedQualified = qualifiedTeams(submission.picks);
-  const actualRound32 = new Set(actualQualified.round32.map((team) => team.team));
-  predictedQualified.round32.forEach((team) => {
-    if (actualRound32.has(team.team)) {
-      breakdown.qualification += scoringRules.round32Qualification;
-    }
-  });
+  const groupResultsComplete = allResultsPresent(
+    results,
+    groupFixtures().map((fixture) => fixture.id),
+  );
 
-  for (const [group, actualTable] of actualQualified.standings.entries()) {
-    const predicted = predictedQualified.standings.get(group) ?? [];
-    predicted.forEach((team) => {
-      const actual = actualTable.find((item) => item.team === team.team);
-      if (!actual) return;
-      if (actual.position === team.position) {
-        breakdown.qualification += scoringRules.exactGroupPosition;
-      } else if (Math.abs(actual.position - team.position) === 1) {
-        breakdown.qualification += scoringRules.nearGroupPosition;
+  if (groupResultsComplete) {
+    const actualQualified = qualifiedTeams(results.matches);
+    const actualRound32 = new Set(actualQualified.round32.map((team) => team.team));
+    predictedQualified.round32.forEach((team) => {
+      if (actualRound32.has(team.team)) {
+        breakdown.qualification += scoringRules.round32Qualification;
       }
     });
+
+    for (const [group, actualTable] of actualQualified.standings.entries()) {
+      const predicted = predictedQualified.standings.get(group) ?? [];
+      predicted.forEach((team) => {
+        const actual = actualTable.find((item) => item.team === team.team);
+        if (!actual) return;
+        if (actual.position === team.position) {
+          breakdown.qualification += scoringRules.exactGroupPosition;
+        } else if (Math.abs(actual.position - team.position) === 1) {
+          breakdown.qualification += scoringRules.nearGroupPosition;
+        }
+      });
+    }
   }
 
-  const actualResolved = resolveFixtures(results.matches);
+  const fixtureIdsByStage = (stage: string) =>
+    fixtures.filter((fixture) => fixture.stage === stage).map((fixture) => fixture.id);
+  const round32Complete = allResultsPresent(results, fixtureIdsByStage("round32"));
+  const round16Complete = allResultsPresent(results, fixtureIdsByStage("round16"));
+  const quarterComplete = allResultsPresent(results, fixtureIdsByStage("quarter"));
+  const semiComplete = allResultsPresent(results, fixtureIdsByStage("semi"));
+
+  const quarterFinalistsKnown = groupResultsComplete && round32Complete && round16Complete;
+  const semiFinalistsKnown = quarterFinalistsKnown && quarterComplete;
+  const finalistsKnown = semiFinalistsKnown && semiComplete;
+
+  if (quarterFinalistsKnown || semiFinalistsKnown || finalistsKnown) {
+    const actualResolved = resolveFixtures(results.matches);
+    const predictedResolved = resolveFixtures(submission.picks);
+    const teamsInFixtures = (resolved: ResolvedFixture[], ids: number[]) =>
+      new Set(
+        resolved
+          .filter((fixture) => ids.includes(fixture.id))
+          .flatMap((fixture) => [fixture.resolvedTeam1, fixture.resolvedTeam2]),
+      );
+    const predictedSets = {
+      qf: teamsInFixtures(predictedResolved, [97, 98, 99, 100]),
+      sf: teamsInFixtures(predictedResolved, [101, 102]),
+      final: teamsInFixtures(predictedResolved, [104]),
+    };
+
+    if (quarterFinalistsKnown) {
+      const actualQf = teamsInFixtures(actualResolved, [97, 98, 99, 100]);
+      predictedSets.qf.forEach((team) => {
+        if (actualQf.has(team)) breakdown.placements += scoringRules.quarterFinalist;
+      });
+    }
+
+    if (semiFinalistsKnown) {
+      const actualSf = teamsInFixtures(actualResolved, [101, 102]);
+      predictedSets.sf.forEach((team) => {
+        if (actualSf.has(team)) breakdown.placements += scoringRules.semiFinalist;
+      });
+    }
+
+    if (finalistsKnown) {
+      const actualFinal = teamsInFixtures(actualResolved, [104]);
+      predictedSets.final.forEach((team) => {
+        if (actualFinal.has(team)) breakdown.placements += scoringRules.finalist;
+      });
+    }
+  }
+
   const predictedResolved = resolveFixtures(submission.picks);
-  const teamsInFixtures = (resolved: ResolvedFixture[], ids: number[]) =>
-    new Set(
-      resolved
-        .filter((fixture) => ids.includes(fixture.id))
-        .flatMap((fixture) => [fixture.resolvedTeam1, fixture.resolvedTeam2]),
-    );
-  const actualSets = {
-    qf: teamsInFixtures(actualResolved, [97, 98, 99, 100]),
-    sf: teamsInFixtures(actualResolved, [101, 102]),
-    final: teamsInFixtures(actualResolved, [104]),
-  };
-  const predictedSets = {
-    qf: teamsInFixtures(predictedResolved, [97, 98, 99, 100]),
-    sf: teamsInFixtures(predictedResolved, [101, 102]),
-    final: teamsInFixtures(predictedResolved, [104]),
-  };
-
-  predictedSets.qf.forEach((team) => {
-    if (actualSets.qf.has(team)) breakdown.placements += scoringRules.quarterFinalist;
-  });
-  predictedSets.sf.forEach((team) => {
-    if (actualSets.sf.has(team)) breakdown.placements += scoringRules.semiFinalist;
-  });
-  predictedSets.final.forEach((team) => {
-    if (actualSets.final.has(team)) breakdown.placements += scoringRules.finalist;
-  });
-
   const finalResult = results.matches[104];
   const predictedFinal = predictedResolved.find((fixture) => fixture.id === 104);
   const finalPick = submission.picks[104];
