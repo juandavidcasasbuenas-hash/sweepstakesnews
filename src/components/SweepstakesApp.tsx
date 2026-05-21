@@ -1957,6 +1957,12 @@ export default function SweepstakesApp() {
     !!name.trim() &&
     totalIncompleteRequiredPicks === 0 &&
     totalMissingPenaltyWinners === 0;
+  const needsNameToReview =
+    !hasSubmittedEntry &&
+    !locked &&
+    !name.trim() &&
+    totalIncompleteRequiredPicks === 0 &&
+    totalMissingPenaltyWinners === 0;
 
   function updatePick(fixtureId: number, patch: Partial<MatchPick>) {
     setPicks((current) => ({
@@ -2165,14 +2171,23 @@ export default function SweepstakesApp() {
                   {/* Entry gateway */}
                   <div className="entry-gateway">
                     <div className="gateway-right">
-                      <input
-                        className="gateway-name"
-                        value={name}
-                        onChange={(event) => setName(event.target.value)}
-                        placeholder="Your name..."
-                        maxLength={40}
-                        aria-label="Entry name"
-                      />
+                      <div className="gateway-name-wrap">
+                        <input
+                          className={`gateway-name${needsNameToReview ? " gateway-name-error" : ""}`}
+                          value={name}
+                          onChange={(event) => setName(event.target.value)}
+                          placeholder="Your name..."
+                          maxLength={40}
+                          aria-label="Entry name"
+                          aria-invalid={needsNameToReview}
+                          aria-describedby={needsNameToReview ? "name-required-note" : undefined}
+                        />
+                        {needsNameToReview ? (
+                          <p id="name-required-note" className="gateway-validation">
+                            Add your name to continue
+                          </p>
+                        ) : null}
+                      </div>
                       <button
                         className="secondary-button icon-button compact-btn"
                         onClick={autofillActiveStep}
@@ -2299,7 +2314,7 @@ export default function SweepstakesApp() {
                           Review & confirm <ChevronRight size={15} />
                         </button>
                       ) : !locked ? (
-                        <span className="footer-cta-hint">
+                        <span className={`footer-cta-hint${needsNameToReview ? " footer-cta-error" : ""}`}>
                           {!name.trim()
                             ? "Add your name above to continue"
                             : totalMissingPenaltyWinners

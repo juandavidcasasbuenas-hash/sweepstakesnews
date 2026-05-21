@@ -558,8 +558,15 @@ h1 {
   min-width: 200px;
 }
 
-.gateway-name {
+.gateway-name-wrap {
+  display: grid;
   flex: 1;
+  min-width: 0;
+  gap: 0.35rem;
+}
+
+.gateway-name {
+  width: 100%;
   min-width: 0;
   height: 46px;
   padding: 0 1rem;
@@ -576,6 +583,12 @@ h1 {
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
+.gateway-name-error {
+  border-color: var(--red);
+  background: #fff6f4;
+  box-shadow: 0 0 0 4px rgba(200, 0, 30, 0.12);
+}
+
 .gateway-name:focus {
   border-color: var(--red);
   box-shadow: 0 0 0 3px rgba(200, 0, 30, 0.10);
@@ -586,6 +599,15 @@ h1 {
   font-weight: 400;
   text-transform: none;
   letter-spacing: 0;
+}
+
+.gateway-validation {
+  margin: 0;
+  color: var(--red);
+  font-size: 0.76rem;
+  font-weight: 800;
+  font-family: var(--font-display), sans-serif;
+  text-transform: uppercase;
 }
 
 /* ── JOURNEY RAIL ── */
@@ -796,6 +818,14 @@ h1 {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-left: auto;
+}
+
+.footer-cta-error {
+  color: var(--red);
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgba(200, 0, 30, 0.32);
+  border-radius: var(--radius);
+  background: #fff6f4;
 }
 
 .compact-btn {
