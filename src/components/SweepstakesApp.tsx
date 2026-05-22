@@ -617,81 +617,169 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
     <head>
       <title>${escapeHtml(submission.name)} predictions</title>
       <style>
-        @page { size: A3 landscape; margin: 12mm; }
+        @page { size: A3 landscape; margin: 10mm; }
         * { box-sizing: border-box; }
         body {
           margin: 0;
-          color: #f7f2df;
-          background: #020917;
-          font-family: Arial, sans-serif;
+          color: #111111;
+          background: #f5efe0;
+          font-family: Georgia, serif;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
         .sheet {
           min-height: 100vh;
-          padding: 22px;
+          padding: 18px;
           background:
-            linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px),
-            linear-gradient(135deg, #020917, #061a3b 52%, #020917);
-          background-size: 42px 42px, 42px 42px, auto;
+            linear-gradient(rgba(0,0,0,.025) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0,0,0,.018) 1px, transparent 1px),
+            #f5efe0;
+          background-size: 18px 18px, 18px 18px, auto;
         }
         .hero {
           position: relative;
-          min-height: 178px;
+          min-height: 198px;
           overflow: hidden;
-          border: 1px solid rgba(153,194,255,.38);
-          border-radius: 12px;
-          padding: 24px;
+          border-top: 5px solid #c8001e;
+          border-bottom: 3px solid #c8001e;
+          padding: 18px 20px 20px;
           display: grid;
-          align-content: end;
+          align-content: space-between;
+          background: #0d0d0d;
+          box-shadow: 0 8px 34px rgba(0,0,0,.18);
         }
-        .hero img {
+        .hero-bg {
           position: absolute;
           inset: 0;
           width: 100%;
           height: 100%;
           object-fit: cover;
-          opacity: .68;
+          opacity: .56;
+          object-position: center 30%;
         }
         .hero::after {
           content: "";
           position: absolute;
           inset: 0;
-          background: linear-gradient(90deg, rgba(2,9,23,.96), rgba(2,9,23,.62), rgba(2,9,23,.18));
+          background:
+            linear-gradient(90deg, rgba(0,0,0,.97), rgba(0,0,0,.76) 45%, rgba(0,0,0,.28)),
+            linear-gradient(0deg, rgba(0,0,0,.64), transparent 58%);
         }
-        .hero-content { position: relative; z-index: 1; }
-        .brand { color: #f2b84b; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: .12em; }
-        h1 {
-          margin: 8px 0 0;
+        .hero-content {
+          position: relative;
+          z-index: 1;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 390px;
+          gap: 20px;
+          align-items: end;
+        }
+        .masthead {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          color: #f5efe0;
+          text-transform: uppercase;
+        }
+        .masthead img {
+          width: 42px;
+          height: 42px;
+          object-fit: contain;
+          filter: drop-shadow(0 8px 16px rgba(0,0,0,.44));
+        }
+        .brand {
+          display: block;
+          color: #ffffff;
           font-family: Impact, Arial Narrow, sans-serif;
-          font-size: 58px;
-          line-height: .86;
+          font-size: 18px;
+          font-weight: 900;
+          line-height: .92;
+          letter-spacing: 0;
+        }
+        .edition {
+          display: block;
+          margin-top: 3px;
+          color: #ff3a3a;
+          font-family: Arial, sans-serif;
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: .16em;
+        }
+        h1 {
+          margin: 10px 0 0;
+          color: #ffffff;
+          font-family: Impact, Arial Narrow, sans-serif;
+          font-size: 64px;
+          line-height: .82;
           text-transform: uppercase;
           letter-spacing: 0;
+          text-shadow: 0 4px 28px rgba(0,0,0,.64);
+        }
+        .pdf-quote {
+          margin: 0;
+          display: grid;
+          grid-template-columns: 58px minmax(0, 1fr);
+          gap: 10px;
+          align-items: start;
+          padding: 10px 0 10px 12px;
+          border-left: 4px solid #ff3a3a;
+          color: rgba(255,255,255,.88);
+          font-size: 10px;
+          font-weight: 800;
+          font-style: italic;
+          line-height: 1.38;
+          text-shadow: 0 3px 16px rgba(0,0,0,.7);
+        }
+        .pdf-quote img {
+          width: 58px;
+          height: 58px;
+          object-fit: cover;
+          object-position: center top;
+          border: 2px solid rgba(255,255,255,.72);
+          box-shadow: 0 6px 18px rgba(0,0,0,.35);
+        }
+        .pdf-quote span,
+        .pdf-quote cite {
+          display: block;
+        }
+        .pdf-quote span + span {
+          margin-top: 4px;
+        }
+        .pdf-quote cite {
+          margin-top: 7px;
+          color: #ff3a3a;
+          font-family: Impact, Arial Narrow, sans-serif;
+          font-size: 9px;
+          font-style: normal;
+          text-transform: uppercase;
+          letter-spacing: .08em;
         }
         .summary {
           display: grid;
           grid-template-columns: repeat(5, 1fr);
-          gap: 10px;
-          margin: 14px 0;
+          gap: 8px;
+          margin: 12px 0;
         }
         .metric {
-          border: 1px solid rgba(153,194,255,.28);
-          border-radius: 8px;
-          padding: 10px 12px;
-          background: rgba(255,255,255,.045);
+          border: 1px solid rgba(0,0,0,.2);
+          border-top: 3px solid #c8001e;
+          padding: 9px 10px;
+          background: #fffdf9;
+          box-shadow: 0 2px 9px rgba(0,0,0,.07);
         }
         .metric span {
           display: block;
-          color: #8ea2c7;
-          font-size: 10px;
+          color: #777777;
+          font-family: Arial, sans-serif;
+          font-size: 8px;
           font-weight: 900;
           text-transform: uppercase;
+          letter-spacing: .08em;
         }
         .metric b {
           display: block;
-          color: #f2b84b;
+          color: #111111;
           font-family: Impact, Arial Narrow, sans-serif;
           font-size: 24px;
           line-height: 1;
@@ -704,16 +792,17 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
         }
         .card {
           break-inside: avoid;
-          border: 1px solid rgba(153,194,255,.24);
-          border-radius: 8px;
-          background: rgba(5,18,43,.78);
+          border: 1px solid rgba(0,0,0,.2);
+          background: #fefcf5;
           overflow: hidden;
+          box-shadow: 0 2px 8px rgba(0,0,0,.07);
         }
         h2 {
           margin: 0;
           padding: 8px 10px;
-          color: #f2b84b;
-          border-bottom: 1px solid rgba(153,194,255,.18);
+          color: #f5efe0;
+          background: #111111;
+          border-bottom: 3px solid #c8001e;
           font-family: Impact, Arial Narrow, sans-serif;
           font-size: 18px;
           text-transform: uppercase;
@@ -721,13 +810,24 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
         table { width: 100%; border-collapse: collapse; font-size: 10px; }
         th, td {
           padding: 5px 6px;
-          border-bottom: 1px solid rgba(153,194,255,.12);
+          border-bottom: 1px solid rgba(0,0,0,.1);
           text-align: left;
           vertical-align: top;
         }
-        th { color: #8ea2c7; text-transform: uppercase; font-size: 9px; }
+        th {
+          color: #f5efe0;
+          background: #111111;
+          font-family: Arial, sans-serif;
+          text-transform: uppercase;
+          font-size: 8px;
+          letter-spacing: .05em;
+        }
+        tr:nth-child(even) td {
+          background: rgba(0,0,0,.025);
+        }
         .score {
-          color: #f2b84b;
+          color: #c8001e;
+          font-family: Impact, Arial Narrow, sans-serif;
           font-weight: 900;
           white-space: nowrap;
           text-align: center;
@@ -745,11 +845,13 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
           align-items: end;
           justify-content: space-between;
           gap: 14px;
-          border-bottom: 2px solid rgba(242,184,75,.72);
+          border-bottom: 4px solid #111111;
           padding-bottom: 8px;
         }
         .tree-heading h2 {
           border: 0;
+          background: transparent;
+          color: #111111;
           padding: 0;
           font-size: 34px;
           line-height: .9;
@@ -757,7 +859,8 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
         .tree-heading p {
           margin: 0;
           max-width: 430px;
-          color: #c7d4ef;
+          color: #444444;
+          font-family: Arial, sans-serif;
           font-size: 12px;
           font-weight: 800;
           text-align: right;
@@ -776,15 +879,15 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
           gap: 7px;
         }
         .tree-col-title {
-          color: #f2b84b;
+          color: #c8001e;
           font-family: Impact, Arial Narrow, sans-serif;
           font-size: 16px;
           text-transform: uppercase;
           text-align: center;
-          border: 1px solid rgba(242,184,75,.28);
-          border-radius: 8px;
+          border: 1px solid rgba(200,0,30,.35);
+          border-top: 3px solid #c8001e;
           padding: 6px 7px;
-          background: rgba(242,184,75,.08);
+          background: #fffdf9;
         }
         .tree-stack {
           display: flex;
@@ -794,9 +897,8 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
         }
         .tree-match {
           position: relative;
-          border: 1px solid rgba(153,194,255,.24);
-          border-radius: 8px;
-          background: rgba(5,18,43,.86);
+          border: 1px solid rgba(0,0,0,.2);
+          background: #fefcf5;
           padding: 6px;
           break-inside: avoid;
         }
@@ -806,7 +908,7 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
           top: 50%;
           right: -11px;
           width: 10px;
-          border-top: 1px solid rgba(242,184,75,.42);
+          border-top: 1px solid rgba(200,0,30,.42);
         }
         .tree-col:not(:first-child) .tree-match::before {
           content: "";
@@ -814,10 +916,11 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
           top: 50%;
           left: -11px;
           width: 10px;
-          border-top: 1px solid rgba(242,184,75,.42);
+          border-top: 1px solid rgba(200,0,30,.42);
         }
         .tree-meta {
-          color: #8ea2c7;
+          color: #777777;
+          font-family: Arial, sans-serif;
           font-size: 8px;
           font-weight: 900;
           text-transform: uppercase;
@@ -832,12 +935,12 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
           gap: 5px;
           align-items: center;
           min-height: 20px;
-          color: #f7f2df;
+          color: #111111;
           font-size: 10px;
           font-weight: 800;
         }
         .tree-team + .tree-team {
-          border-top: 1px solid rgba(153,194,255,.14);
+          border-top: 1px solid rgba(0,0,0,.12);
           margin-top: 3px;
           padding-top: 3px;
         }
@@ -848,16 +951,18 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
           white-space: nowrap;
         }
         .tree-team b {
-          color: #c7d4ef;
+          color: #444444;
           text-align: right;
         }
         .tree-winner span,
         .tree-winner b {
-          color: #f2b84b;
+          color: #1a7a1a;
+          font-weight: 900;
         }
         .tree-final .tree-match {
-          border-color: rgba(242,184,75,.58);
-          background: linear-gradient(180deg, rgba(242,184,75,.16), rgba(5,18,43,.9));
+          border-color: rgba(200,0,30,.58);
+          border-width: 2px;
+          background: rgba(200,0,30,.08);
         }
         .bonus {
           display: grid;
@@ -867,7 +972,8 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
         }
         .footer {
           margin-top: 12px;
-          color: #8ea2c7;
+          color: #777777;
+          font-family: Arial, sans-serif;
           font-size: 10px;
           text-transform: uppercase;
           letter-spacing: .08em;
@@ -877,10 +983,26 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
     <body>
       <main class="sheet">
         <section class="hero">
-          <img src="${origin}/hero-banner-site.jpg" alt="">
+          <img class="hero-bg" src="${origin}/hero-banner-site.jpg" alt="">
+          <div class="masthead">
+            <img src="${origin}/football-logo.png" alt="">
+            <div>
+              <span class="brand">Sweepstakes News</span>
+              <span class="edition">World Cup 2026</span>
+            </div>
+          </div>
           <div class="hero-content">
-            <div class="brand">Sweepstakes News - World Cup 2026</div>
-            <h1>${escapeHtml(submission.name)}<br>Predictions</h1>
+            <div>
+              <h1>${escapeHtml(submission.name)}<br>Predictions</h1>
+            </div>
+            <blockquote class="pdf-quote">
+              <img src="${origin}/trump-quote.jpg" alt="">
+              <div>
+                <span>&ldquo;But when you think about it, shouldn&rsquo;t it really be called &hellip; this is football, there&rsquo;s no question about it. We have to come up with another name for the NFL.</span>
+                <span>&ldquo;It really doesn&rsquo;t make sense when you think about it.&rdquo;</span>
+                <cite>Trump 2026</cite>
+              </div>
+            </blockquote>
           </div>
         </section>
         <section class="summary">
