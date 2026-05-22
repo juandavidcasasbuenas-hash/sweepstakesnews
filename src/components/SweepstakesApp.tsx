@@ -2120,6 +2120,7 @@ export default function SweepstakesApp() {
               alt=""
               width={52}
               height={52}
+              loading="eager"
               className="rail-logo-image"
             />
           </span>
