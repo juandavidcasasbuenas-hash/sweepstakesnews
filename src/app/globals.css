@@ -1130,11 +1130,17 @@ h1 {
   font-family: var(--font-body), Georgia, serif;
 }
 
+.team-label .team-name-full,
+.team-label .team-name-abbr,
 .team-label span:last-child {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.team-name-abbr {
+  display: none;
 }
 
 .flag {
@@ -3181,9 +3187,9 @@ tr.third td:first-child {
   }
 
   .score-input {
-    width: 36px;
-    height: 36px;
-    font-size: 1.08rem;
+    width: 38px;
+    height: 40px;
+    font-size: 1.1rem;
   }
 
   .score-row {
@@ -3368,29 +3374,41 @@ tr.third td:first-child {
   }
 
   .match-chip {
-    font-size: 0.66rem;
+    font-size: 0.64rem;
+    min-width: 56px;
   }
 
+  /* ── Keep the 3-col horizontal layout on small phones ── */
   .fixture-card {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0.45rem;
+    padding: 0.4rem 0.5rem;
+    gap: 0.22rem 0.3rem;
+    /* inherit: grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) from 560px */
   }
 
-  .fixture-home,
-  .fixture-away {
-    justify-content: center;
+  /* Switch to abbreviated team names to fit the horizontal layout */
+  .fixture-card .team-name-full {
+    display: none;
   }
 
-  .fixture-home .team-label {
-    flex-direction: row;
+  .fixture-card .team-name-abbr {
+    display: block;
   }
 
-  .score-inputs-inline {
-    justify-content: center;
+  .fixture-card .team-label {
+    font-size: 0.75rem;
+    gap: 0.28rem;
+  }
+
+  /* Bigger touch targets for score inputs */
+  .score-input {
+    width: 40px;
+    height: 44px;
+    font-size: 1.15rem;
   }
 
   .penalty-select {
-    height: 36px;
+    height: 40px;
+    font-size: 0.78rem;
   }
 
   .footer-nav-btn,
@@ -3413,6 +3431,21 @@ tr.third td:first-child {
   .score-row input {
     height: 44px;
     font-size: 1.3rem;
+  }
+
+  /* Bigger journey stops for touch */
+  .journey-stop {
+    min-width: 42px;
+    padding: 0.42rem 0.48rem;
+  }
+
+  .js-label {
+    font-size: 0.88rem;
+  }
+
+  /* Tighten section heading on very small screens */
+  .active-stage-header {
+    gap: 0.4rem;
   }
 }
 

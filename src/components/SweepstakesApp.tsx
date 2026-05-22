@@ -233,6 +233,16 @@ function TeamLabelAbbr({ team }: { team: string }) {
   );
 }
 
+function TeamLabelResponsive({ team }: { team: string }) {
+  return (
+    <span className="team-label">
+      <TeamFlag team={team} />
+      <span className="team-name-full">{team}</span>
+      <span className="team-name-abbr">{teamAbbreviation(team)}</span>
+    </span>
+  );
+}
+
 function TeamPill({ children, team }: { children: React.ReactNode; team?: string }) {
   return (
     <span className="team-pill">
@@ -1167,7 +1177,7 @@ function FixtureCard({
     <article className="fixture-card">
       <span className="match-chip">Match {displayMatchNumber(fixture)}</span>
       <div className="fixture-home">
-        <TeamLabel team={fixture.resolvedTeam1} />
+        <TeamLabelResponsive team={fixture.resolvedTeam1} />
       </div>
       <div className="score-inputs-inline">
         <input
@@ -1193,7 +1203,7 @@ function FixtureCard({
         />
       </div>
       <div className="fixture-away">
-        <TeamLabel team={fixture.resolvedTeam2} />
+        <TeamLabelResponsive team={fixture.resolvedTeam2} />
       </div>
       {needsWinner && (
         <select
