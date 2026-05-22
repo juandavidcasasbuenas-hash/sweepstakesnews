@@ -1005,14 +1005,6 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
             <div>
               <h1>${escapeHtml(submission.name)}<br>Predictions</h1>
             </div>
-            <blockquote class="pdf-quote">
-              <img src="${origin}/trump-quote.jpg" alt="">
-              <div>
-                <span>&ldquo;But when you think about it, shouldn&rsquo;t it really be called &hellip; this is football, there&rsquo;s no question about it. We have to come up with another name for the NFL.</span>
-                <span>&ldquo;It really doesn&rsquo;t make sense when you think about it.&rdquo;</span>
-                <cite>Trump 2026</cite>
-              </div>
-            </blockquote>
           </div>
         </section>
         <section class="summary">
@@ -2293,23 +2285,6 @@ export default function SweepstakesApp() {
           <div className="hero-grid" aria-hidden="true" />
           <div className="hero-content">
             <h1>{activeHero.h1}</h1>
-            <blockquote className="hero-quote">
-              <Image
-                src="/trump-quote.jpg"
-                alt="Donald Trump"
-                width={72}
-                height={72}
-                className="hero-quote-image"
-              />
-              <div>
-                <span>
-                  &ldquo;But when you think about it, shouldn&rsquo;t it really be called &hellip; this is football,
-                  there&rsquo;s no question about it. We have to come up with another name for the NFL.
-                </span>
-                <span>&ldquo;It really doesn&rsquo;t make sense when you think about it.&rdquo;</span>
-                <cite>Trump 2026</cite>
-              </div>
-            </blockquote>
           </div>
         </section>
 
