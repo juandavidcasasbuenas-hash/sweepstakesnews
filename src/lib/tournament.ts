@@ -1,4 +1,8 @@
 import { fixtures } from "@/data/fixtures";
+import {
+  THIRD_PLACE_ALLOCATION_BY_GROUPS,
+  THIRD_PLACE_SLOT_FIXTURE_IDS,
+} from "@/data/third-place-allocation";
 import { fixtureKickoffDate } from "@/lib/fixture-time";
 import type {
   BonusPicks,
@@ -212,7 +216,52 @@ export function qualifiedTeams(picks: Record<number, MatchPick | ResultMatch>) {
   };
 }
 
-function rankToken(token: string, picks: Record<number, MatchPick | ResultMatch>) {
+function thirdPlaceTeamByFixtureId(picks: Record<number, MatchPick | ResultMatch>) {
+  const { bestThirds } = qualifiedTeams(picks);
+  const qualifiedGroups = bestThirds.map((team) => team.group).sort().join("");
+  const allocation = THIRD_PLACE_ALLOCATION_BY_GROUPS[qualifiedGroups];
+  const teamsByGroup = new Map(bestThirds.map((team) => [team.group, team.team]));
+  const assigned = new Map<number, string>();
+
+  if (allocation) {
+    THIRD_PLACE_SLOT_FIXTURE_IDS.forEach((fixtureId, index) => {
+      const group = allocation[index];
+      const team = group ? teamsByGroup.get(group) : undefined;
+      if (team) {
+        assigned.set(fixtureId, team);
+      }
+    });
+  }
+
+  if (assigned.size === THIRD_PLACE_SLOT_FIXTURE_IDS.length) {
+    return assigned;
+  }
+
+  const used = new Set(assigned.values());
+  for (const fixture of fixtures) {
+    if (fixture.stage !== "round32") continue;
+    [fixture.team1, fixture.team2].forEach((token) => {
+      if (!token.match(/^3[A-L/]+$/) || assigned.has(fixture.id)) return;
+      const allowed = new Set(token.replace(/\s/g, "").slice(1).split("/"));
+      const team = bestThirds.find(
+        (standing) => allowed.has(standing.group) && !used.has(standing.team),
+      );
+      if (team) {
+        used.add(team.team);
+        assigned.set(fixture.id, team.team);
+      }
+    });
+  }
+
+  return assigned;
+}
+
+function rankToken(
+  token: string,
+  picks: Record<number, MatchPick | ResultMatch>,
+  thirdPlaceSlots?: Map<number, string>,
+  fixtureId?: number,
+) {
   const { standings, allThirds } = qualifiedTeams(picks);
   const clean = token.replace(/\s/g, "");
   const direct = clean.match(/^([12])([A-L])$/);
@@ -222,6 +271,8 @@ function rankToken(token: string, picks: Record<number, MatchPick | ResultMatch>
   }
   const third = clean.match(/^3([A-L/]+)$/);
   if (third) {
+    const allocatedTeam = fixtureId ? thirdPlaceSlots?.get(fixtureId) : undefined;
+    if (allocatedTeam) return allocatedTeam;
     const allowed = new Set(third[1].split("/"));
     return allThirds.find((team) => allowed.has(team.group))?.team ?? token;
   }
@@ -232,6 +283,7 @@ export function resolveFixtures(
   picks: Record<number, MatchPick | ResultMatch>,
 ): ResolvedFixture[] {
   const resolved = new Map<number, ResolvedFixture>();
+  const thirdPlaceSlots = thirdPlaceTeamByFixtureId(picks);
   for (const fixture of fixtures) {
     let resolvedTeam1 = fixture.team1;
     let resolvedTeam2 = fixture.team2;
@@ -260,7 +312,7 @@ export function resolveFixtures(
             : prev.resolvedTeam1
           : fixture.team1;
       } else {
-        resolvedTeam1 = rankToken(fixture.team1, picks);
+        resolvedTeam1 = rankToken(fixture.team1, picks, thirdPlaceSlots, fixture.id);
       }
 
       if (winner2) {
@@ -281,7 +333,7 @@ export function resolveFixtures(
             : prev.resolvedTeam1
           : fixture.team2;
       } else {
-        resolvedTeam2 = rankToken(fixture.team2, picks);
+        resolvedTeam2 = rankToken(fixture.team2, picks, thirdPlaceSlots, fixture.id);
       }
     }
 
