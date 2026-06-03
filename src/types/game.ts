@@ -70,6 +70,7 @@ export type TournamentResults = {
   updatedAt: string;
   providerCheckedAt?: string;
   providerWarning?: string;
+  manualOverride?: boolean;
 };
 
 export type TeamStanding = {
