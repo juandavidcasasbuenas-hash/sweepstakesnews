@@ -8,6 +8,11 @@ type DeleteSubmissionsRequest = {
   all?: boolean;
 };
 
+type UpdateSubmissionRequest = {
+  id?: string;
+  name?: string;
+};
+
 function isAdminRequest(request: Request) {
   const adminKey = process.env.ADMIN_RESULTS_KEY;
   return Boolean(adminKey && request.headers.get("authorization") === `Bearer ${adminKey}`);
@@ -58,6 +63,56 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ mode: "supabase", submission });
+}
+
+export async function PATCH(request: Request) {
+  if (!isAdminRequest(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const supabase = getSupabase();
+  if (!supabase) {
+    return NextResponse.json({ error: "Supabase is not configured" }, { status: 500 });
+  }
+
+  const body = (await request.json().catch(() => ({}))) as UpdateSubmissionRequest;
+  const id = body.id?.trim();
+  const name = body.name?.trim();
+
+  if (!id) {
+    return NextResponse.json({ error: "Submission id is required" }, { status: 400 });
+  }
+
+  if (!name) {
+    return NextResponse.json({ error: "Name is required" }, { status: 400 });
+  }
+
+  const { data: row, error: readError } = await supabase
+    .from("submissions")
+    .select("payload")
+    .eq("id", id)
+    .single();
+
+  if (readError) {
+    return NextResponse.json({ error: readError.message }, { status: 404 });
+  }
+
+  const payload = { ...(row.payload as Submission), name };
+  const { data, error } = await supabase
+    .from("submissions")
+    .update({ name, payload })
+    .eq("id", id)
+    .select("payload")
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    mode: "supabase",
+    submission: data.payload as Submission,
+  });
 }
 
 export async function DELETE(request: Request) {

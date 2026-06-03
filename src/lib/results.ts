@@ -24,6 +24,7 @@ const MIN_PROVIDER_INTERVAL_MS = 15_000;
 const MIN_PROVIDER_CACHE_SECONDS = 1_800;
 const WC2026_API_BASE = "https://api.wc2026api.com";
 const FINAL_REFRESH_UNTIL_ISO = "2026-07-20T06:00:00.000Z";
+export const manualResultsWarning = "Manual admin results are being used.";
 const SANDBOX_CYCLE_MINUTES = 160;
 const SANDBOX_PHASE_MINUTES = SANDBOX_CYCLE_MINUTES / 8;
 const SANDBOX_PHASES = ["PRE", "1H", "HT", "2H", "ET1", "ET2", "PEN", "FT_PEN"] as const;
@@ -638,6 +639,15 @@ export async function getLiveResults(request: Request): Promise<LiveResults> {
   const currentAgeMs = cacheAgeMs(stored.results);
   const currentIsFresh = hasCacheTimestamp(stored.results) && currentAgeMs <= liveCacheMs();
   const pollingWarning = !sampleRefresh ? providerPollingWindowWarning() : undefined;
+
+  if (!sampleRefresh && !testRefresh && stored.results.manualOverride) {
+    return {
+      ...stored,
+      cached: true,
+      stale: false,
+      warning: stored.results.providerWarning ?? manualResultsWarning,
+    };
+  }
 
   if (!forceRefresh && currentIsFresh) {
     return {
