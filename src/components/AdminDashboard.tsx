@@ -1,6 +1,9 @@
 "use client";
 
 import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
   Download,
   Eye,
   KeyRound,
@@ -27,7 +30,25 @@ type ResultsPayload = {
   error?: string;
 };
 
-type AdminTab = "entries" | "results";
+type HealthPayload = {
+  status?: "ok" | "warn" | "error";
+  checkedAt?: string;
+  checks?: Array<{
+    label: string;
+    status: "ok" | "warn" | "error";
+    detail: string;
+  }>;
+  data?: {
+    submissionCount: number | null;
+    resultCount: number;
+    resultsUpdatedAt: string;
+    manualOverride: boolean;
+    providerWarning: string;
+  };
+  error?: string;
+};
+
+type AdminTab = "entries" | "results" | "health";
 
 type ResultDraft = {
   home: string;
@@ -165,6 +186,8 @@ export default function AdminDashboard() {
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
   const [resultsLoading, setResultsLoading] = useState(true);
+  const [health, setHealth] = useState<HealthPayload | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const filteredSubmissions = useMemo(() => {
@@ -286,6 +309,30 @@ export default function AdminDashboard() {
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
     if (!response.ok) throw new Error(payload.error ?? "Admin request failed");
     return payload;
+  }
+
+  async function loadHealth() {
+    setHealthLoading(true);
+    setStatus("");
+    try {
+      const payload = (await adminFetch("/api/admin/health", {
+        method: "GET",
+      })) as HealthPayload;
+      setHealth(payload);
+      setStatus(
+        payload.status === "ok"
+          ? "Health check passed."
+          : payload.status === "warn"
+            ? "Health check completed with warnings."
+            : "Health check found errors.",
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not run health check";
+      setHealth({ status: "error", error: message, checks: [] });
+      setStatus(message);
+    } finally {
+      setHealthLoading(false);
+    }
   }
 
   async function saveResultsPayload(nextResults: TournamentResults, message: string) {
@@ -554,6 +601,15 @@ export default function AdminDashboard() {
           onClick={() => setActiveTab("results")}
         >
           Manual results
+        </button>
+        <button
+          className={activeTab === "health" ? "active" : ""}
+          onClick={() => {
+            setActiveTab("health");
+            if (token.trim()) void loadHealth();
+          }}
+        >
+          Health
         </button>
       </section>
 
@@ -983,6 +1039,86 @@ export default function AdminDashboard() {
               </div>
             )}
           </aside>
+        </section>
+      ) : null}
+
+      {activeTab === "health" ? (
+        <section className="admin-health-panel">
+          <div className="admin-toolbar">
+            <div>
+              <span className="eyebrow">System status</span>
+              <h2>Admin health</h2>
+            </div>
+            <button
+              className="secondary-button icon-button compact-btn"
+              onClick={() => void loadHealth()}
+              disabled={healthLoading}
+            >
+              <RefreshCw size={14} />
+              {healthLoading ? "Checking..." : "Run check"}
+            </button>
+          </div>
+
+          {status ? <p className="admin-status">{status}</p> : null}
+
+          {health ? (
+            <>
+              <div className="admin-health-summary">
+                <article className={`health-summary-card ${health.status ?? "warn"}`}>
+                  <span>Overall</span>
+                  <strong>{health.status ?? "Unknown"}</strong>
+                </article>
+                <article>
+                  <span>Submissions</span>
+                  <strong>{health.data?.submissionCount ?? "—"}</strong>
+                </article>
+                <article>
+                  <span>Results</span>
+                  <strong>{health.data?.resultCount ?? "—"}</strong>
+                </article>
+                <article>
+                  <span>Override</span>
+                  <strong>{health.data?.manualOverride ? "On" : "Off"}</strong>
+                </article>
+              </div>
+
+              {health.error ? (
+                <div className="admin-health-error">
+                  <AlertTriangle size={18} />
+                  <span>{health.error}</span>
+                </div>
+              ) : null}
+
+              <div className="admin-health-list">
+                {(health.checks ?? []).map((item) => (
+                  <article className={`admin-health-row ${item.status}`} key={item.label}>
+                    <span className="admin-health-icon" aria-hidden="true">
+                      {item.status === "ok" ? (
+                        <CheckCircle2 size={18} />
+                      ) : item.status === "warn" ? (
+                        <AlertTriangle size={18} />
+                      ) : (
+                        <Activity size={18} />
+                      )}
+                    </span>
+                    <div>
+                      <strong>{item.label}</strong>
+                      <small>{item.detail}</small>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              {health.checkedAt ? (
+                <p className="admin-status">Last checked {formatDate(health.checkedAt)}</p>
+              ) : null}
+            </>
+          ) : (
+            <div className="admin-empty-state detail-empty">
+              <Activity size={24} />
+              <span>Run a health check to inspect the live admin setup.</span>
+            </div>
+          )}
         </section>
       ) : null}
     </main>
