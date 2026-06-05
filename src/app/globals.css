@@ -3877,7 +3877,7 @@ tr.third td:first-child {
 @media (max-width: 780px) {
   .create-body {
     grid-template-columns: 1fr;
-    margin-top: -2rem;
+    margin-top: 0;
   }
 
   .create-hero {
