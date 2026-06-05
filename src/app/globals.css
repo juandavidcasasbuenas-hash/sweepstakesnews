@@ -518,8 +518,7 @@ h1 {
 .create-form {
   display: grid;
   align-content: start;
-  gap: 1rem;
-  padding: clamp(1rem, 2vw, 1.35rem);
+  gap: 1.25rem;
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(254, 252, 245, 0.96);
   color: var(--fg);
@@ -529,9 +528,13 @@ h1 {
 .form-heading {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding-bottom: 0.9rem;
+  gap: 0.85rem;
+  padding-bottom: 1rem;
   border-bottom: 3px solid var(--fg);
+}
+
+.form-heading svg {
+  flex-shrink: 0;
 }
 
 .form-heading h2 {
@@ -543,7 +546,7 @@ h1 {
 
 .field-label {
   display: grid;
-  gap: 0.42rem;
+  gap: 0.5rem;
   color: var(--muted-strong);
   font-family: var(--font-display), sans-serif;
   font-size: 0.74rem;
@@ -554,8 +557,8 @@ h1 {
 
 .field-label input {
   width: 100%;
-  height: 46px;
-  padding: 0 0.9rem;
+  height: 48px;
+  padding: 0 1rem;
   border: 2px solid var(--line-strong);
   border-radius: var(--radius);
   background: #fffdf9;
@@ -597,7 +600,7 @@ h1 {
   display: block;
   max-width: 100%;
   overflow-wrap: anywhere;
-  padding: 0.65rem 0.75rem;
+  padding: 0.75rem 0.9rem;
   border: 1px solid var(--line);
   background: rgba(26, 122, 26, 0.08);
   color: var(--fg);
@@ -694,6 +697,11 @@ h1 {
   min-width: 0;
   padding: 0;
   animation: panelEnter 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* .create-form also carries .panel; re-declare padding after .panel so it wins the cascade */
+.create-form {
+  padding: clamp(1.5rem, 3vw, 2rem);
 }
 
 /* ── SECTION TITLE ── */
