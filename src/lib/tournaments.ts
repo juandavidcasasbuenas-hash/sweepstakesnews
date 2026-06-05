@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "crypto";
+import { createHash, randomBytes, timingSafeEqual } from "crypto";
 import { getSupabase } from "@/lib/supabase";
 import type { Tournament } from "@/types/game";
 
@@ -19,6 +19,10 @@ type TournamentRow = {
   name: string;
   creator_name: string | null;
   created_at: string;
+};
+
+type TournamentAuthRow = TournamentRow & {
+  admin_token_hash: string | null;
 };
 
 export function normalizeTournamentSlug(value: string) {
@@ -49,6 +53,12 @@ export function hashAdminToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
+function hashesMatch(first: string, second: string) {
+  const firstBuffer = Buffer.from(first, "hex");
+  const secondBuffer = Buffer.from(second, "hex");
+  return firstBuffer.length === secondBuffer.length && timingSafeEqual(firstBuffer, secondBuffer);
+}
+
 export async function readTournamentBySlug(slug: string) {
   const supabase = getSupabase();
   if (!supabase) return slug === defaultTournamentSlug ? defaultTournament : null;
@@ -62,6 +72,24 @@ export async function readTournamentBySlug(slug: string) {
   if (error) throw new Error(error.message);
   if (data) return tournamentFromRow(data as TournamentRow);
   return slug === defaultTournamentSlug ? defaultTournament : null;
+}
+
+export async function verifyTournamentAdminToken(slug: string, token?: string | null) {
+  const supabase = getSupabase();
+  const cleanToken = token?.trim();
+  if (!supabase || !cleanToken || slug === defaultTournamentSlug) return false;
+
+  const { data, error } = await supabase
+    .from("tournaments")
+    .select("id,slug,name,creator_name,created_at,admin_token_hash")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  const row = data as TournamentAuthRow | null;
+  if (!row?.admin_token_hash) return false;
+
+  return hashesMatch(hashAdminToken(cleanToken), row.admin_token_hash);
 }
 
 export async function ensureUniqueTournamentSlug(name: string) {
