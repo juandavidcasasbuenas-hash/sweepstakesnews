@@ -36,6 +36,7 @@ import type {
   MatchPick,
   ResolvedFixture,
   Submission,
+  Tournament,
   TournamentResults,
 } from "@/types/game";
 
@@ -69,6 +70,17 @@ type ResultsPayload = {
 type SubmissionsPayload = {
   mode?: string;
   submissions?: Submission[];
+};
+type SweepstakesAppProps = {
+  tournament?: Tournament;
+};
+
+const defaultTournament: Tournament = {
+  id: "sweepstakes-news",
+  slug: "sweepstakes-news",
+  name: "Sweepstakes News",
+  creatorName: null,
+  createdAt: new Date(0).toISOString(),
 };
 
 const groupLetters = "ABCDEFGHIJKL".split("") as PredictionStep[];
@@ -551,7 +563,11 @@ function createMockSubmissions(existing: Submission[]) {
   ];
 }
 
-function buildPredictionPdfHtml(submission: Submission, results: TournamentResults) {
+function buildPredictionPdfHtml(
+  submission: Submission,
+  results: TournamentResults,
+  options: { brandName: string; heroImage: string },
+) {
   const resolved = resolveFixtures(submission.picks);
   const score = scoreSubmission(submission, results);
   const final = finalSummary(submission);
@@ -993,11 +1009,11 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
     <body>
       <main class="sheet">
         <section class="hero">
-          <img class="hero-bg" src="${origin}/hero-banner-site.jpg" alt="">
+          <img class="hero-bg" src="${origin}${options.heroImage}" alt="">
           <div class="masthead">
             <img src="${origin}/football-logo.png" alt="">
             <div>
-              <span class="brand">Sweepstakes News</span>
+              <span class="brand">${escapeHtml(options.brandName)}</span>
               <span class="edition">World Cup 2026</span>
             </div>
           </div>
@@ -1096,14 +1112,18 @@ function buildPredictionPdfHtml(submission: Submission, results: TournamentResul
               </div>
             </article>
           </div>
-          <div class="footer">Generated from Sweepstakes News - ${escapeHtml(new Date().toLocaleString())}</div>
+          <div class="footer">Generated from ${escapeHtml(options.brandName)} - ${escapeHtml(new Date().toLocaleString())}</div>
         </section>
       </main>
     </body>
   </html>`;
 }
 
-function openPredictionPdf(submission: Submission, results: TournamentResults) {
+function openPredictionPdf(
+  submission: Submission,
+  results: TournamentResults,
+  options: { brandName: string; heroImage: string },
+) {
   const frame = document.createElement("iframe");
   frame.title = `${submission.name} predictions PDF`;
   frame.style.position = "fixed";
@@ -1123,7 +1143,7 @@ function openPredictionPdf(submission: Submission, results: TournamentResults) {
   }
 
   frameDocument.open();
-  frameDocument.write(buildPredictionPdfHtml(submission, results));
+  frameDocument.write(buildPredictionPdfHtml(submission, results, options));
   frameDocument.close();
 
   window.setTimeout(() => {
@@ -1916,7 +1936,21 @@ function EntrySubmittedPanel({
   );
 }
 
-export default function SweepstakesApp() {
+export default function SweepstakesApp({ tournament = defaultTournament }: SweepstakesAppProps) {
+  const isDefaultTournament = tournament.slug === defaultTournament.slug;
+  const submissionsUrl = isDefaultTournament
+    ? "/api/submissions"
+    : `/api/submissions?tournament=${encodeURIComponent(tournament.slug)}`;
+  const tournamentStorageSuffix = isDefaultTournament ? "" : `:${tournament.slug}`;
+  const scopedSubmissionsKey = `${localSubmissionsKey}${tournamentStorageSuffix}`;
+  const scopedResultsKey = `${localResultsKey}${tournamentStorageSuffix}`;
+  const scopedSubmittedEntryKey = `${localSubmittedEntryKey}${tournamentStorageSuffix}`;
+  const scopedNameKey = `sweepstakes-news-name${tournamentStorageSuffix}`;
+  const scopedDraftKey = `sweepstakes-news-draft${tournamentStorageSuffix}`;
+  const scopedBonusesKey = `sweepstakes-news-bonuses${tournamentStorageSuffix}`;
+  const heroImage = isDefaultTournament ? "/hero-banner-site.jpg" : "/tournament-generic-banner.png";
+  const brandName = tournament.name;
+  const shareEnabled = !isDefaultTournament;
   const [tab, setTab] = useState<Tab>("predict");
   const [name, setName] = useState("");
   const [picks, setPicks] = useState<Record<number, MatchPick>>(createEmptyPicks);
@@ -1933,6 +1967,7 @@ export default function SweepstakesApp() {
   const [resultsSyncing, setResultsSyncing] = useState(false);
   const [resultsStatus, setResultsStatus] = useState("");
   const [selectedMatchDate, setSelectedMatchDate] = useState("");
+  const [shareStatus, setShareStatus] = useState("");
 
   const applyResultsPayload = useCallback((payload: ResultsPayload) => {
     const apiResults = payload.results;
@@ -1992,17 +2027,17 @@ export default function SweepstakesApp() {
 
   useEffect(() => {
     queueMicrotask(() => {
-      const storedSubmittedEntryId = readLocal<string | null>(localSubmittedEntryKey, null);
-      const storedSubmissions = readLocal<Submission[]>(localSubmissionsKey, []);
+      const storedSubmittedEntryId = readLocal<string | null>(scopedSubmittedEntryKey, null);
+      const storedSubmissions = readLocal<Submission[]>(scopedSubmissionsKey, []);
       const seededSubmissions =
-        process.env.NODE_ENV === "development"
+        process.env.NODE_ENV === "development" && isDefaultTournament
           ? createMockSubmissions(storedSubmissions)
           : storedSubmissions;
-      setName(readLocal("sweepstakes-news-name", ""));
-      setPicks(readLocal("sweepstakes-news-draft", createEmptyPicks()));
-      setBonuses(readLocal("sweepstakes-news-bonuses", emptyBonuses()));
+      setName(readLocal(scopedNameKey, ""));
+      setPicks(readLocal(scopedDraftKey, createEmptyPicks()));
+      setBonuses(readLocal(scopedBonusesKey, emptyBonuses()));
       setSubmissions(seededSubmissions);
-      setResults(readLocal(localResultsKey, blankResults));
+      setResults(readLocal(scopedResultsKey, blankResults));
       setSubmittedEntryId(storedSubmittedEntryId);
       if (storedSubmittedEntryId && seededSubmissions.some((submission) => submission.id === storedSubmittedEntryId)) {
         setTab("leaderboard");
@@ -2011,7 +2046,7 @@ export default function SweepstakesApp() {
     });
 
     Promise.all([
-      fetch("/api/submissions").then((response) => response.json()),
+      fetch(submissionsUrl).then((response) => response.json()),
       fetch("/api/results").then((response) => response.json()),
     ])
       .then(([submissionPayload, resultPayload]: [SubmissionsPayload, ResultsPayload]) => {
@@ -2038,7 +2073,17 @@ export default function SweepstakesApp() {
         }
       })
       .catch(() => undefined);
-  }, [applyResultsPayload]);
+  }, [
+    applyResultsPayload,
+    isDefaultTournament,
+    scopedBonusesKey,
+    scopedDraftKey,
+    scopedNameKey,
+    scopedResultsKey,
+    scopedSubmittedEntryKey,
+    scopedSubmissionsKey,
+    submissionsUrl,
+  ]);
 
   useEffect(() => {
     if (!hydrated || (tab !== "leaderboard" && tab !== "matchday")) return;
@@ -2056,29 +2101,29 @@ export default function SweepstakesApp() {
 
   useEffect(() => {
     if (!hydrated) return;
-    window.localStorage.setItem("sweepstakes-news-name", name);
-    window.localStorage.setItem("sweepstakes-news-draft", JSON.stringify(picks));
-    window.localStorage.setItem("sweepstakes-news-bonuses", JSON.stringify(bonuses));
-  }, [hydrated, name, picks, bonuses]);
+    window.localStorage.setItem(scopedNameKey, name);
+    window.localStorage.setItem(scopedDraftKey, JSON.stringify(picks));
+    window.localStorage.setItem(scopedBonusesKey, JSON.stringify(bonuses));
+  }, [hydrated, name, picks, bonuses, scopedBonusesKey, scopedDraftKey, scopedNameKey]);
 
   useEffect(() => {
     if (!hydrated) return;
-    window.localStorage.setItem(localSubmissionsKey, JSON.stringify(submissions));
-  }, [hydrated, submissions]);
+    window.localStorage.setItem(scopedSubmissionsKey, JSON.stringify(submissions));
+  }, [hydrated, scopedSubmissionsKey, submissions]);
 
   useEffect(() => {
     if (!hydrated) return;
-    window.localStorage.setItem(localResultsKey, JSON.stringify(results));
-  }, [hydrated, results]);
+    window.localStorage.setItem(scopedResultsKey, JSON.stringify(results));
+  }, [hydrated, scopedResultsKey, results]);
 
   useEffect(() => {
     if (!hydrated) return;
     if (submittedEntryId) {
-      window.localStorage.setItem(localSubmittedEntryKey, JSON.stringify(submittedEntryId));
+      window.localStorage.setItem(scopedSubmittedEntryKey, JSON.stringify(submittedEntryId));
     } else {
-      window.localStorage.removeItem(localSubmittedEntryKey);
+      window.localStorage.removeItem(scopedSubmittedEntryKey);
     }
-  }, [hydrated, submittedEntryId]);
+  }, [hydrated, scopedSubmittedEntryKey, submittedEntryId]);
 
   const resolvedFixtures = useMemo(() => resolveFixtures(picks), [picks]);
   const ownSubmission = useMemo(
@@ -2144,7 +2189,7 @@ export default function SweepstakesApp() {
     setSubmittedEntryId(submission.id);
     setReviewing(false);
     setTab("leaderboard");
-    await fetch("/api/submissions", {
+    await fetch(submissionsUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(submission),
@@ -2152,7 +2197,7 @@ export default function SweepstakesApp() {
   }
 
   function exportSubmission(submission: Submission) {
-    const opened = openPredictionPdf(submission, results);
+    const opened = openPredictionPdf(submission, results, { brandName, heroImage });
     setExportNotice(
       opened
         ? "PDF layout ready. Choose Save as PDF in the print dialog."
@@ -2234,6 +2279,17 @@ export default function SweepstakesApp() {
     }));
   }
 
+  async function copyTournamentLink() {
+    const path = `/t/${tournament.slug}`;
+    const url = typeof window === "undefined" ? path : `${window.location.origin}${path}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareStatus("Invite link copied");
+    } catch {
+      setShareStatus(url);
+    }
+  }
+
   return (
     <main className="arena-layout">
       <aside className="tournament-rail">
@@ -2249,7 +2305,7 @@ export default function SweepstakesApp() {
             />
           </span>
           <div className="rail-brand-copy">
-            <strong>Sweepstakes News</strong>
+            <strong>{brandName}</strong>
             <span>World Cup 2026</span>
           </div>
         </div>
@@ -2268,13 +2324,25 @@ export default function SweepstakesApp() {
         <div className="rail-note">
           <span>Entries close</span>
           <strong>Before kick-off · 11 Jun 2026</strong>
+          {shareEnabled ? (
+            <button className="rail-share-button" onClick={copyTournamentLink}>
+              <ClipboardCheck size={14} />
+              Share invite
+            </button>
+          ) : (
+            <a className="rail-share-button rail-create-link" href="/new">
+              <Sparkles size={14} />
+              Create your pool
+            </a>
+          )}
+          {shareStatus ? <small>{shareStatus}</small> : null}
         </div>
       </aside>
 
       <div className="arena-main">
         <section className="hero" key={`hero-${tab}`}>
           <Image
-            src="/hero-banner-site.jpg"
+            src={heroImage}
             alt=""
             fill
             priority
