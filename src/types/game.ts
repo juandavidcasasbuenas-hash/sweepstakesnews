@@ -45,6 +45,14 @@ export type Submission = {
   bonuses: BonusPicks;
 };
 
+export type Tournament = {
+  id: string;
+  slug: string;
+  name: string;
+  creatorName?: string | null;
+  createdAt: string;
+};
+
 export type ResultMatch = {
   fixtureId: number;
   providerId?: number;

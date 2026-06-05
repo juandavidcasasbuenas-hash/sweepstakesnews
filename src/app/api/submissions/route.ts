@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { defaultTournamentSlug, readTournamentBySlug } from "@/lib/tournaments";
 import type { Submission } from "@/types/game";
 
 type DeleteSubmissionsRequest = {
@@ -13,21 +14,56 @@ type UpdateSubmissionRequest = {
   name?: string;
 };
 
+type SubmissionRow = {
+  payload: Submission;
+};
+
 function isAdminRequest(request: Request) {
   const adminKey = process.env.ADMIN_RESULTS_KEY;
   return Boolean(adminKey && request.headers.get("authorization") === `Bearer ${adminKey}`);
 }
 
-export async function GET() {
+async function readDefaultTournamentId() {
+  return (await readTournamentBySlug(defaultTournamentSlug))?.id ?? null;
+}
+
+function submissionSelect() {
+  return "id,name,payload,created_at";
+}
+
+export async function GET(request: Request) {
   const supabase = getSupabase();
   if (!supabase) {
     return NextResponse.json({ mode: "local", submissions: [] });
   }
 
-  const { data, error } = await supabase
-    .from("submissions")
-    .select("id,name,payload,created_at")
-    .order("created_at", { ascending: false });
+  const url = new URL(request.url);
+  const tournamentSlug = url.searchParams.get("tournament")?.trim();
+  let query = supabase.from("submissions").select(submissionSelect());
+
+  if (tournamentSlug) {
+    const tournament = await readTournamentBySlug(tournamentSlug);
+    if (!tournament) {
+      return NextResponse.json({ error: "Tournament not found" }, { status: 404 });
+    }
+    query = query.eq("tournament_id", tournament.id);
+  } else {
+    const defaultTournamentId = await readDefaultTournamentId();
+    if (defaultTournamentId && defaultTournamentId !== defaultTournamentSlug) {
+      query = query.or(`tournament_id.is.null,tournament_id.eq.${defaultTournamentId}`);
+    }
+  }
+
+  let { data, error } = await query.order("created_at", { ascending: false });
+
+  if (error && !tournamentSlug) {
+    const fallback = await supabase
+      .from("submissions")
+      .select(submissionSelect())
+      .order("created_at", { ascending: false });
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -35,13 +71,15 @@ export async function GET() {
 
   return NextResponse.json({
     mode: "supabase",
-    submissions: data.map((row) => row.payload as Submission),
+    submissions: ((data ?? []) as unknown as SubmissionRow[]).map((row) => row.payload),
   });
 }
 
 export async function POST(request: Request) {
   const submission = (await request.json()) as Submission;
   const supabase = getSupabase();
+  const url = new URL(request.url);
+  const tournamentSlug = url.searchParams.get("tournament")?.trim();
 
   if (!submission.name?.trim()) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -51,12 +89,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ mode: "local", submission });
   }
 
-  const { error } = await supabase.from("submissions").insert({
+  const row: Record<string, unknown> = {
     id: submission.id,
     name: submission.name.trim(),
     payload: submission,
     created_at: submission.createdAt,
-  });
+  };
+
+  if (tournamentSlug) {
+    const tournament = await readTournamentBySlug(tournamentSlug);
+    if (!tournament) {
+      return NextResponse.json({ error: "Tournament not found" }, { status: 404 });
+    }
+    row.tournament_id = tournament.id;
+  }
+
+  const { error } = await supabase.from("submissions").insert(row);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
