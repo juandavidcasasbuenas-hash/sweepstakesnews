@@ -31,6 +31,7 @@ export default function TournamentManage({ tournament }: { tournament: Tournamen
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [savingName, setSavingName] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
   const links = useMemo(() => {
     if (typeof window === "undefined") return null;
@@ -67,6 +68,12 @@ export default function TournamentManage({ tournament }: { tournament: Tournamen
   useEffect(() => {
     void loadSubmissions();
   }, [loadSubmissions]);
+
+  useEffect(() => {
+    if (!confirmingDeleteId) return;
+    const reset = window.setTimeout(() => setConfirmingDeleteId(null), 5000);
+    return () => window.clearTimeout(reset);
+  }, [confirmingDeleteId]);
 
   async function copyInvite() {
     if (!links) return;
@@ -109,10 +116,14 @@ export default function TournamentManage({ tournament }: { tournament: Tournamen
 
   async function deleteEntry(submission: Submission) {
     if (!adminToken) return;
-    const confirmed = window.confirm(`Remove ${submission.name}'s entry from this tournament?`);
-    if (!confirmed) return;
+    if (confirmingDeleteId !== submission.id) {
+      setConfirmingDeleteId(submission.id);
+      setStatus(`Click confirm to remove ${submission.name}'s entry.`);
+      return;
+    }
 
     setDeletingId(submission.id);
+    setConfirmingDeleteId(null);
     setStatus("");
     try {
       const response = await fetch(
@@ -221,7 +232,11 @@ export default function TournamentManage({ tournament }: { tournament: Tournamen
                   disabled={!hasCreatorAccess || deletingId === submission.id}
                 >
                   <Trash2 size={16} />
-                  {deletingId === submission.id ? "Removing..." : "Remove"}
+                  {deletingId === submission.id
+                    ? "Removing..."
+                    : confirmingDeleteId === submission.id
+                      ? "Confirm remove"
+                      : "Remove"}
                 </button>
               </article>
             ))
