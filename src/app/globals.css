@@ -1829,6 +1829,52 @@ tr.third td:first-child {
     url("/tournament-generic-banner.png") center / cover;
 }
 
+.creator-manage-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.creator-entry-panel {
+  gap: 0.9rem;
+}
+
+.creator-entry-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.creator-entry-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  background: var(--bg-card-alt);
+}
+
+.creator-entry-row strong,
+.creator-entry-row span {
+  display: block;
+}
+
+.creator-entry-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--fg);
+  font-family: var(--font-display), sans-serif;
+  font-size: 1rem;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
+.creator-entry-row span {
+  margin-top: 0.18rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
 .admin-hero h1 {
   margin: 0.2rem 0 0;
   color: #ffffff;
@@ -3842,6 +3888,7 @@ tr.third td:first-child {
   }
 
   .admin-stats,
+  .creator-manage-grid,
   .admin-detail-grid,
   .admin-result-editor {
     grid-template-columns: 1fr;
@@ -4075,6 +4122,11 @@ tr.third td:first-child {
 
   .admin-health-summary {
     grid-template-columns: 1fr;
+  }
+
+  .creator-entry-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .app-shell {
