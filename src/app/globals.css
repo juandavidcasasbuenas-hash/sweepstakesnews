@@ -519,10 +519,13 @@ h1 {
   display: grid;
   align-content: start;
   gap: 1.25rem;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(254, 252, 245, 0.96);
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  background: rgba(254, 252, 245, 0.98);
   color: var(--fg);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.06),
+    0 4px 16px rgba(0, 0, 0, 0.18),
+    0 20px 60px rgba(0, 0, 0, 0.32);
 }
 
 .form-heading {
