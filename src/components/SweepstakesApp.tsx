@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BarChart3,
   CalendarDays,
   CheckCircle2,
   ChevronLeft,
@@ -2320,6 +2321,13 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
               <span>{item.label}</span>
             </button>
           ))}
+          <a
+            className="tab-link"
+            href={isDefaultTournament ? "/insights" : `/t/${tournament.slug}/insights`}
+          >
+            <BarChart3 size={18} />
+            <span>Fun facts</span>
+          </a>
         </nav>
         <div className="rail-note">
           <span>Entries close</span>
