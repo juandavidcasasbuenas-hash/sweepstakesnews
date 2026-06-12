@@ -9,6 +9,7 @@ import {
   ClipboardCheck,
   Download,
   Eye,
+  ImageDown,
   LockKeyhole,
   RefreshCw,
   Shuffle,
@@ -1118,6 +1119,155 @@ function buildPredictionPdfHtml(
       </main>
     </body>
   </html>`;
+}
+
+function exportLeaderboardPng(
+  submissions: Submission[],
+  results: TournamentResults,
+  brandName: string,
+) {
+  if (typeof document === "undefined" || submissions.length === 0) return false;
+
+  const rows = submissions
+    .map((submission) => ({
+      submission,
+      score: scoreSubmission(submission, results),
+      champion: finalSummary(submission).champion,
+    }))
+    .sort(
+      (a, b) =>
+        b.score.total - a.score.total || a.submission.name.localeCompare(b.submission.name),
+    );
+
+  const scale = 2;
+  const width = 720;
+  const margin = 26;
+  const headerH = 118;
+  const rowH = 54;
+  const footerH = 48;
+  const height = headerH + rows.length * rowH + footerH;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return false;
+  ctx.scale(scale, scale);
+
+  const display = "Impact, 'Arial Narrow', sans-serif";
+  const body = "Georgia, serif";
+  const sans = "Arial, sans-serif";
+
+  ctx.fillStyle = "#F5EFE0";
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.fillStyle = "#0D0D0D";
+  ctx.fillRect(0, 0, width, headerH);
+  ctx.fillStyle = "#C8001E";
+  ctx.fillRect(0, 0, width, 5);
+
+  ctx.fillStyle = "#FF3A3A";
+  ctx.font = `bold 11px ${sans}`;
+  ctx.fillText(`${brandName.toUpperCase()} · WORLD CUP 2026`, margin, 38);
+
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = `48px ${display}`;
+  ctx.fillText("THE STANDINGS", margin, 88);
+
+  const updatedAt = new Date(results.updatedAt);
+  const updatedLabel =
+    Number.isFinite(updatedAt.getTime()) && updatedAt.getTime() > 0
+      ? `Updated ${updatedAt.toLocaleDateString([], { month: "short", day: "numeric" })} · ${updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+      : `As of ${new Date().toLocaleDateString([], { month: "short", day: "numeric" })}`;
+  ctx.fillStyle = "rgba(245, 239, 224, 0.62)";
+  ctx.font = `11px ${sans}`;
+  ctx.textAlign = "right";
+  ctx.fillText(updatedLabel, width - margin, 88);
+  ctx.textAlign = "left";
+
+  const truncate = (text: string, maxWidth: number) => {
+    if (ctx.measureText(text).width <= maxWidth) return text;
+    let shortened = text;
+    while (shortened.length > 1 && ctx.measureText(`${shortened}…`).width > maxWidth) {
+      shortened = shortened.slice(0, -1);
+    }
+    return `${shortened}…`;
+  };
+
+  const rankColors: Record<number, string> = { 0: "#B5820A", 1: "#8A8A8A", 2: "#9C5A28" };
+
+  rows.forEach((row, index) => {
+    const top = headerH + index * rowH;
+    if (index % 2 === 1) {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.04)";
+      ctx.fillRect(0, top, width, rowH);
+    }
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.1)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(margin, top + rowH - 0.5);
+    ctx.lineTo(width - margin, top + rowH - 0.5);
+    ctx.stroke();
+
+    const boxSize = 30;
+    const boxY = top + (rowH - boxSize) / 2;
+    ctx.fillStyle = rankColors[index] ?? "#111111";
+    ctx.fillRect(margin, boxY, boxSize, boxSize);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = `16px ${display}`;
+    ctx.textAlign = "center";
+    ctx.fillText(String(index + 1), margin + boxSize / 2, boxY + 21);
+    ctx.textAlign = "left";
+
+    const nameX = margin + boxSize + 14;
+    ctx.fillStyle = "#111111";
+    ctx.font = `bold 17px ${body}`;
+    ctx.fillText(truncate(row.submission.name, 280), nameX, top + 24);
+    ctx.fillStyle = "#777777";
+    ctx.font = `11px ${sans}`;
+    ctx.fillText(truncate(`Champion: ${row.champion}`, 280), nameX, top + 41);
+
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#444444";
+    ctx.font = `11px ${sans}`;
+    ctx.fillText(
+      `Groups ${row.score.groupMatches + row.score.qualification} · KO ${row.score.knockoutMatches + row.score.placements} · Bonus ${row.score.bonuses}`,
+      width - margin - 86,
+      top + 33,
+    );
+
+    ctx.fillStyle = "#C8001E";
+    ctx.font = `30px ${display}`;
+    ctx.fillText(String(row.score.total), width - margin, top + 37);
+    ctx.textAlign = "left";
+  });
+
+  const footTop = headerH + rows.length * rowH;
+  ctx.fillStyle = "#777777";
+  ctx.font = `10px ${sans}`;
+  ctx.fillText(
+    `${rows.length} ${rows.length === 1 ? "entry" : "entries"} · ${Object.keys(results.matches ?? {}).length} results in`,
+    margin,
+    footTop + 28,
+  );
+  ctx.fillStyle = "#C8001E";
+  ctx.fillRect(0, footTop + footerH - 3, width, 3);
+
+  const slug =
+    brandName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "sweepstakes";
+  canvas.toBlob((blob) => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${slug}-standings.png`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, "image/png");
+
+  return true;
 }
 
 function openPredictionPdf(
@@ -2593,6 +2743,20 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
                       Export my PDF
                     </button>
                   ) : null}
+                  <button
+                    className="secondary-button icon-button compact-btn"
+                    onClick={() => {
+                      const exported = exportLeaderboardPng(submissions, results, brandName);
+                      setExportNotice(
+                        exported
+                          ? "Standings image saved — share it anywhere."
+                          : "No entries to export yet.",
+                      );
+                    }}
+                  >
+                    <ImageDown size={14} />
+                    Export PNG
+                  </button>
                   <button className="secondary-button icon-button compact-btn" onClick={() => loadLiveResults("force")}>
                     <RefreshCw size={14} />
                     Check for results
