@@ -79,6 +79,7 @@ export type TournamentResults = {
   providerCheckedAt?: string;
   providerWarning?: string;
   manualOverride?: boolean;
+  providerCalls?: { date: string; count: number };
 };
 
 export type TeamStanding = {

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { hasSupabaseConfig, getSupabase } from "@/lib/supabase";
-import { readStoredResults } from "@/lib/results";
+import {
+  providerCallBudget,
+  readStoredResults,
+  resultsPollTier,
+  resultsPollTtlSeconds,
+} from "@/lib/results";
 
 type HealthCheck = {
   label: string;
@@ -101,12 +106,23 @@ export async function GET(request: Request) {
   let resultsUpdatedAt = "";
   let manualOverride = false;
   let providerWarning = "";
+  let providerBudget: { cap: number; count: number; exhausted: boolean } | null = null;
   try {
     const stored = await readStoredResults();
     resultCount = Object.keys(stored.results.matches ?? {}).length;
     resultsUpdatedAt = stored.results.updatedAt;
     manualOverride = Boolean(stored.results.manualOverride);
     providerWarning = stored.results.providerWarning ?? "";
+    providerBudget = providerCallBudget(stored.results);
+    checks.push(
+      check(
+        "Provider call budget",
+        providerBudget.exhausted ? "warn" : "ok",
+        `${providerBudget.count} of ${providerBudget.cap} daily provider calls used${
+          providerBudget.exhausted ? "; refresh paused until midnight UTC" : ""
+        }.`,
+      ),
+    );
     checks.push(
       check(
         "Results read",
@@ -133,14 +149,13 @@ export async function GET(request: Request) {
     );
   }
 
-  const cacheSeconds = Number(process.env.RESULTS_CACHE_SECONDS ?? "");
+  const pollTier = resultsPollTier();
+  const pollTtlSeconds = resultsPollTtlSeconds(pollTier);
   checks.push(
     check(
       "Results cache",
-      Number.isFinite(cacheSeconds) && cacheSeconds >= 0 ? "ok" : "warn",
-      Number.isFinite(cacheSeconds) && cacheSeconds >= 0
-        ? `RESULTS_CACHE_SECONDS is ${cacheSeconds}.`
-        : "RESULTS_CACHE_SECONDS is not set; the default cache window will be used.",
+      "ok",
+      `Schedule-aware polling is ${pollTier} right now; provider data refreshes at most every ${Math.round(pollTtlSeconds / 60)} min.`,
     ),
   );
 
@@ -154,6 +169,9 @@ export async function GET(request: Request) {
       resultsUpdatedAt,
       manualOverride,
       providerWarning,
+      pollTier,
+      pollTtlSeconds,
+      providerBudget,
     },
   });
 }

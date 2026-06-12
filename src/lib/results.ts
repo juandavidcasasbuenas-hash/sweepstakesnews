@@ -1,4 +1,5 @@
 import { fixtures } from "@/data/fixtures";
+import { fixtureKickoffDate } from "@/lib/fixture-time";
 import {
   displayMatchNumber,
   emptyBonuses,
@@ -21,7 +22,14 @@ let localResults = emptyResults;
 let lastProviderCallMs = 0;
 let inFlightProviderCall: Promise<TournamentResults> | null = null;
 const MIN_PROVIDER_INTERVAL_MS = 15_000;
-const MIN_PROVIDER_CACHE_SECONDS = 1_800;
+// Schedule-aware polling: refresh often while matches are in play, rarely
+// otherwise, and never exceed the provider's daily request allowance.
+const HOT_TTL_FLOOR_SECONDS = 720;
+const WARM_TTL_SECONDS = 3_600;
+const FORCE_REFRESH_MIN_MS = 120_000;
+const DEFAULT_DAILY_CALL_BUDGET = 90;
+const GROUP_MATCH_WINDOW_MS = 3.5 * 60 * 60 * 1000;
+const KNOCKOUT_MATCH_WINDOW_MS = 4 * 60 * 60 * 1000;
 const WC2026_API_BASE = "https://api.wc2026api.com";
 const FINAL_REFRESH_UNTIL_ISO = "2026-07-20T06:00:00.000Z";
 export const manualResultsWarning = "Manual admin results are being used.";
@@ -487,7 +495,7 @@ export async function fetchResultsFromProvider(request: Request) {
 
   const now = Date.now();
   if (now - lastProviderCallMs < MIN_PROVIDER_INTERVAL_MS) {
-    throw new Error(`Results provider called too frequently — wait ${Math.ceil((MIN_PROVIDER_INTERVAL_MS - (now - lastProviderCallMs)) / 1000)}s`);
+    throw new ProviderThrottleError(`Results provider called too frequently — wait ${Math.ceil((MIN_PROVIDER_INTERVAL_MS - (now - lastProviderCallMs)) / 1000)}s`);
   }
   lastProviderCallMs = now;
 
@@ -537,7 +545,7 @@ export async function writeStoredResults(results: TournamentResults): Promise<Re
   return { mode: "supabase", results: payload };
 }
 
-export async function refreshStoredResults(request: Request) {
+export async function refreshStoredResults(request: Request): Promise<ResultsWrite> {
   const isSample = new URL(request.url).searchParams.get("sample") === "1";
   const pollingWarning = !isSample ? providerPollingWindowWarning() : undefined;
   if (pollingWarning) {
@@ -545,13 +553,41 @@ export async function refreshStoredResults(request: Request) {
     return { ...cached, warning: pollingWarning };
   }
 
-  const results = await fetchResultsFromProvider(request);
-  if (!isSample && !hasResults(results)) {
-    const warning = "Results provider returned no scored matches";
-    const cached = await cacheProviderWarning(await readStoredResults(), warning);
+  const stored = await readStoredResults();
+
+  if (!isSample) {
+    const budget = providerCallBudget(stored.results);
+    if (budget.exhausted) {
+      const warning = `Daily results API budget used (${budget.count}/${budget.cap}). Automatic refresh resumes after midnight UTC.`;
+      return { ...stored, warning };
+    }
+  }
+
+  // Count the attempt before calling: a failed request still spends quota.
+  const providerCalls = isSample
+    ? stored.results.providerCalls
+    : bumpedProviderCalls(stored.results);
+
+  let results: TournamentResults;
+  try {
+    results = await fetchResultsFromProvider(request);
+  } catch (error) {
+    if (error instanceof ProviderThrottleError) {
+      // No request went out — return the saved data without re-stamping the
+      // cache, so the next poll can still refresh on time.
+      return { ...stored, warning: error.message };
+    }
+    const warning = error instanceof Error ? error.message : "Could not refresh results";
+    const cached = await cacheProviderWarning(stored, warning, providerCalls);
     return { ...cached, warning };
   }
-  return writeStoredResults(results);
+
+  if (!isSample && !hasResults(results)) {
+    const warning = "Results provider returned no scored matches";
+    const cached = await cacheProviderWarning(stored, warning, providerCalls);
+    return { ...cached, warning };
+  }
+  return writeStoredResults({ ...results, providerCalls });
 }
 
 function hasResults(results: TournamentResults) {
@@ -574,11 +610,57 @@ function hasCacheTimestamp(results: TournamentResults) {
   return Number.isFinite(providerCheckTimestamp(results));
 }
 
-function liveCacheMs() {
-  const seconds = Number(process.env.RESULTS_CACHE_SECONDS ?? MIN_PROVIDER_CACHE_SECONDS);
-  const safeSeconds = Number.isFinite(seconds) && seconds >= 0 ? seconds : MIN_PROVIDER_CACHE_SECONDS;
-  return Math.max(safeSeconds, MIN_PROVIDER_CACHE_SECONDS) * 1000;
+export type ResultsPollTier = "hot" | "warm";
+
+export function resultsPollTier(now = new Date()): ResultsPollTier {
+  const nowMs = now.getTime();
+  for (const fixture of fixtures) {
+    const kickoff = fixtureKickoffDate(fixture)?.getTime();
+    if (kickoff === undefined || kickoff === null) continue;
+    const windowMs =
+      fixture.stage === "group" ? GROUP_MATCH_WINDOW_MS : KNOCKOUT_MATCH_WINDOW_MS;
+    if (nowMs >= kickoff && nowMs <= kickoff + windowMs) return "hot";
+  }
+  return "warm";
 }
+
+function hotTtlSeconds() {
+  const seconds = Number(process.env.RESULTS_CACHE_SECONDS ?? NaN);
+  // The floor keeps worst-case match days inside the provider's daily quota.
+  if (Number.isFinite(seconds)) return Math.max(HOT_TTL_FLOOR_SECONDS, seconds);
+  return HOT_TTL_FLOOR_SECONDS;
+}
+
+export function resultsPollTtlSeconds(tier: ResultsPollTier) {
+  const hot = hotTtlSeconds();
+  return tier === "hot" ? hot : Math.max(hot, WARM_TTL_SECONDS);
+}
+
+function dailyCallBudgetCap() {
+  const cap = Number(process.env.RESULTS_DAILY_CALL_BUDGET ?? NaN);
+  if (Number.isFinite(cap) && cap >= 1) return Math.floor(cap);
+  return DEFAULT_DAILY_CALL_BUDGET;
+}
+
+function utcDay(now = new Date()) {
+  return now.toISOString().slice(0, 10);
+}
+
+function providerCallsToday(results: TournamentResults, now = new Date()) {
+  return results.providerCalls?.date === utcDay(now) ? results.providerCalls.count : 0;
+}
+
+export function providerCallBudget(results: TournamentResults, now = new Date()) {
+  const cap = dailyCallBudgetCap();
+  const count = providerCallsToday(results, now);
+  return { cap, count, exhausted: count >= cap };
+}
+
+function bumpedProviderCalls(results: TournamentResults, now = new Date()) {
+  return { date: utcDay(now), count: providerCallsToday(results, now) + 1 };
+}
+
+class ProviderThrottleError extends Error {}
 
 function utcDateOffset(date: Date, days: number) {
   const next = new Date(date);
@@ -603,11 +685,16 @@ function providerPollingWindowWarning(now = new Date()) {
   return isNearMatchDay ? undefined : "Official results refresh is paused until the next match day.";
 }
 
-async function cacheProviderWarning(stored: ResultsRead, warning: string) {
+async function cacheProviderWarning(
+  stored: ResultsRead,
+  warning: string,
+  providerCalls?: TournamentResults["providerCalls"],
+) {
   const results = {
     ...stored.results,
     providerCheckedAt: new Date().toISOString(),
     providerWarning: warning,
+    ...(providerCalls ? { providerCalls } : {}),
   };
   try {
     return await writeStoredResults(results);
@@ -637,7 +724,10 @@ export async function getLiveResults(request: Request): Promise<LiveResults> {
 
   const currentHasResults = hasResults(stored.results);
   const currentAgeMs = cacheAgeMs(stored.results);
-  const currentIsFresh = hasCacheTimestamp(stored.results) && currentAgeMs <= liveCacheMs();
+  const ttlMs = resultsPollTtlSeconds(resultsPollTier()) * 1000;
+  const currentIsFresh = hasCacheTimestamp(stored.results) && currentAgeMs <= ttlMs;
+  const plainForceRefresh =
+    url.searchParams.get("refresh") === "1" && !sampleRefresh && !testRefresh;
   const pollingWarning = !sampleRefresh ? providerPollingWindowWarning() : undefined;
 
   if (!sampleRefresh && !testRefresh && stored.results.manualOverride) {
@@ -658,21 +748,23 @@ export async function getLiveResults(request: Request): Promise<LiveResults> {
     };
   }
 
+  // "Check for results" bypasses the schedule cache, but never hammers the
+  // provider: checks made moments ago are simply served back.
+  if (plainForceRefresh && hasCacheTimestamp(stored.results) && currentAgeMs < FORCE_REFRESH_MIN_MS) {
+    return {
+      ...stored,
+      cached: true,
+      stale: false,
+      warning: stored.results.providerWarning,
+    };
+  }
+
   if (pollingWarning) {
     return {
       ...stored,
       cached: true,
       stale: currentHasResults,
       warning: pollingWarning,
-    };
-  }
-
-  if (!sampleRefresh && currentIsFresh) {
-    return {
-      ...stored,
-      cached: true,
-      stale: false,
-      warning: stored.results.providerWarning,
     };
   }
 
