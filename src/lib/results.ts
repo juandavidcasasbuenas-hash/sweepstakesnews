@@ -178,6 +178,7 @@ function localizeWinner(winner: string | undefined, team1?: string, team2?: stri
 type NormalizeOptions = {
   overrideFixtureId?: number;
   allowUnmapped?: boolean;
+  includeScheduled?: boolean;
 };
 
 function resultFromRow(row: unknown, options: NormalizeOptions = {}) {
@@ -243,6 +244,10 @@ function resultFromRow(row: unknown, options: NormalizeOptions = {}) {
   const sandbox = firstBoolean(source.sandbox, source._sandbox);
 
   if (typeof home !== "number" || typeof away !== "number") return undefined;
+
+  // Unplayed matches must never be stored as results: providers may report
+  // scheduled fixtures with 0-0 scores, which would score as real draws.
+  if (status === "scheduled" && !options.includeScheduled) return undefined;
 
   const fixture =
     findFixture(explicitFixtureId, team1, team2) ??
@@ -457,6 +462,7 @@ async function fetchWc2026TestResults() {
 
   return normalizeGenericJson(payload, {
     overrideFixtureId: 104,
+    includeScheduled: true,
   });
 }
 
