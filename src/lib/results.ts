@@ -97,8 +97,12 @@ function nested(source: Record<string, unknown>, key: string) {
 const teamNameAliases: Record<string, string> = {
   bosniaandherzegovina: "bosniaherzegovina",
   bosniaherzegovina: "bosniaherzegovina",
+  caboverde: "capeverde",
+  capeverde: "capeverde",
   congodr: "drcongo",
   czechia: "czechrepublic",
+  iran: "iran",
+  iriran: "iran",
   ivorycoast: "ivorycoast",
   cotedivoire: "ivorycoast",
   korearepublic: "southkorea",
@@ -153,13 +157,19 @@ function findFixtureByTeams(team1?: string, team2?: string) {
   );
 }
 
-function findFixture(fixtureId?: number, team1?: string, team2?: string) {
-  const byId = fixtureId ? fixtures.find((fixture) => fixture.id === fixtureId) : undefined;
-  return byId ?? findFixtureByTeams(team1, team2);
+function findFixtureById(fixtureId?: number) {
+  return fixtureId ? fixtures.find((fixture) => fixture.id === fixtureId) : undefined;
 }
 
-function knownFixtureId(fixtureId?: number) {
-  return typeof fixtureId === "number" && fixtures.some((fixture) => fixture.id === fixtureId);
+function fixtureCompatibleWithTeams(
+  fixture: Fixture | undefined,
+  team1?: string,
+  team2?: string,
+) {
+  if (!fixture || !normalizeTeamName(team1) || !normalizeTeamName(team2)) return fixture;
+  return teamNamesEqual(fixture.team1, team1) && teamNamesEqual(fixture.team2, team2)
+    ? fixture
+    : undefined;
 }
 
 function inferWinner(home: number, away: number, team1?: string, team2?: string) {
@@ -190,9 +200,7 @@ function resultFromRow(row: unknown, options: NormalizeOptions = {}) {
 
   const providerMatchNumber = firstNumber(source.match_number, source.matchNumber);
   const providerId = firstNumber(source.id);
-  const explicitFixtureId =
-    options.overrideFixtureId ??
-    firstNumber(source.fixtureId);
+  const explicitFixtureId = firstNumber(source.fixtureId);
   const looseFixtureId =
     firstNumber(
       source.number,
@@ -250,14 +258,17 @@ function resultFromRow(row: unknown, options: NormalizeOptions = {}) {
   if (status === "scheduled" && !options.includeScheduled) return undefined;
 
   const fixture =
-    findFixture(explicitFixtureId, team1, team2) ??
+    findFixtureById(options.overrideFixtureId) ??
     findFixtureByTeams(team1, team2) ??
-    fixtureFromProviderMatchNumber(providerMatchNumber) ??
-    findFixture(looseFixtureId, team1, team2);
+    fixtureCompatibleWithTeams(findFixtureById(explicitFixtureId), team1, team2) ??
+    fixtureCompatibleWithTeams(
+      fixtureFromProviderMatchNumber(providerMatchNumber),
+      team1,
+      team2,
+    ) ??
+    fixtureCompatibleWithTeams(findFixtureById(looseFixtureId), team1, team2);
   const matchId =
     fixture?.id ??
-    (knownFixtureId(explicitFixtureId) ? explicitFixtureId : undefined) ??
-    (knownFixtureId(looseFixtureId) ? looseFixtureId : undefined) ??
     (options.allowUnmapped ? explicitFixtureId ?? looseFixtureId ?? providerId : undefined);
 
   if (!matchId) return undefined;
