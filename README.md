@@ -53,7 +53,7 @@ It supports three provider paths:
 - `WC2026_API_KEY`: uses the World Cup 2026 API. Override the URL with `WC2026_API_URL` if needed.
 - `RESULTS_API_URL`: any JSON endpoint returning `{ "matches": [{ "fixtureId": 1, "home": 2, "away": 0, "team1": "Mexico", "team2": "South Africa", "winner": "Mexico" }] }`
 
-The app keeps stable internal `fixtureId` values for saved picks, but the UI shows chronological match numbers. WC2026 API `match_number` values are mapped to the corresponding internal fixture before scoring, with team-name matching used first when provider team names are available.
+The app keeps stable internal `fixtureId` values for saved picks, but the UI shows chronological match numbers. Provider rows are mapped by normalized team names first. Numeric identifiers are only used as fallbacks when they agree with any supplied teams, preventing an official match number from being mistaken for the app's chronological display number.
 - `API_FOOTBALL_KEY`: uses API-Football-style fixture payloads. Override the URL with `API_FOOTBALL_URL` if their World Cup league/season endpoint changes.
 
 Local test paths:
