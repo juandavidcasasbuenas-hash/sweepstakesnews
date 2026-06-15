@@ -19,6 +19,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { fixtureKickoffDate } from "@/lib/fixture-time";
 import {
+  avatarForName,
+  fallbackColorForName,
+  initialsForName,
+} from "@/lib/avatars";
+import {
   autofillTournament,
   calculateGroupStandings,
   createEmptyPicks,
@@ -1238,6 +1243,43 @@ function FixtureCard({
   );
 }
 
+function PlayerAvatar({
+  name,
+  size = 40,
+  className = "",
+}: {
+  name: string;
+  size?: number;
+  className?: string;
+}) {
+  const src = avatarForName(name);
+  if (src) {
+    return (
+      <Image
+        src={src}
+        alt=""
+        width={size}
+        height={size}
+        className={`player-avatar ${className}`.trim()}
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden="true"
+      className={`player-avatar player-avatar--fallback ${className}`.trim()}
+      style={{
+        width: size,
+        height: size,
+        background: fallbackColorForName(name),
+        fontSize: size * 0.4,
+      }}
+    >
+      {initialsForName(name)}
+    </span>
+  );
+}
+
 function Leaderboard({
   submissions,
   results,
@@ -1278,6 +1320,7 @@ function Leaderboard({
               <span className={`rank ${index === 0 ? "rank-1" : index === 1 ? "rank-2" : index === 2 ? "rank-3" : "rank-num"}`}>
                 {index + 1}
               </span>
+              <PlayerAvatar name={row.submission.name} size={44} />
               <span>
                 <strong>{row.submission.name}</strong>
                 <small>
