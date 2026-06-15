@@ -261,9 +261,9 @@ h3,
 
 .hero {
   position: relative;
-  /* Match the team photo's aspect ratio so every player is visible, uncropped. */
-  aspect-ratio: 1448 / 1086;
-  max-height: 78vh;
+  /* Wide banner crop of the team photo — all 12 players, no caption. */
+  aspect-ratio: 1448 / 680;
+  max-height: 56vh;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: end;
@@ -296,7 +296,7 @@ h3,
 }
 
 .hero-image {
-  object-fit: contain;
+  object-fit: cover;
   object-position: center;
   opacity: 1;
   z-index: 1;
@@ -311,15 +311,8 @@ h3,
     linear-gradient(90deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.12) 42%, transparent 60%);
 }
 
-/* Blurred, zoomed copy of the banner that softly fills the side bars left by
-   the contained (uncropped) image on wide screens. */
 .hero-grid {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background: url("/hero-team-2026.jpg") center / cover no-repeat;
-  filter: blur(34px) saturate(1.15) brightness(0.85);
-  transform: scale(1.18);
+  display: none;
 }
 
 .hero-content {
