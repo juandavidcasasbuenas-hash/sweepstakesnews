@@ -261,18 +261,18 @@ h3,
 
 .hero {
   position: relative;
-  /* Wide banner crop of the team photo — all 12 players, no caption. */
-  aspect-ratio: 1448 / 680;
-  max-height: 56vh;
+  /* Wide banner: the team photo sits flush right and dissolves left into a
+     black masthead panel that carries the title. */
+  height: clamp(280px, 22vw, 380px);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  align-items: end;
-  padding: 1.6rem clamp(1rem, 3vw, 2.2rem) 1.6rem;
+  align-items: center;
+  padding: 1.6rem clamp(1.5rem, 4vw, 3.5rem);
   overflow: hidden;
   color: #ffffff;
   border: none;
   border-radius: 0;
-  background: #0b0b0b;
+  background: #080808;
   box-shadow: var(--shadow-strong);
 }
 
@@ -296,19 +296,25 @@ h3,
 }
 
 .hero-image {
-  object-fit: cover;
-  object-position: center;
+  object-fit: contain;
+  object-position: right center;
   opacity: 1;
-  z-index: 1;
+  z-index: 0;
 }
 
+/* Black masthead that fades into the photo on the right. */
 .hero-overlay {
   position: absolute;
   inset: 0;
-  z-index: 2;
-  background:
-    linear-gradient(0deg, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.45) 22%, rgba(0, 0, 0, 0) 48%),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.12) 42%, transparent 60%);
+  z-index: 1;
+  background: linear-gradient(
+    90deg,
+    #080808 0%,
+    #080808 20%,
+    rgba(8, 8, 8, 0.85) 38%,
+    rgba(8, 8, 8, 0.32) 56%,
+    rgba(8, 8, 8, 0) 72%
+  );
 }
 
 .hero-grid {
@@ -317,15 +323,18 @@ h3,
 
 .hero-content {
   position: relative;
-  z-index: 3;
-  max-width: 680px;
+  z-index: 2;
+  max-width: min(46%, 460px);
+  padding-left: clamp(0.9rem, 1.4vw, 1.4rem);
+  border-left: 4px solid var(--red);
   animation: heroEnter 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .hero-content h1 {
-  font-size: clamp(2.6rem, 6vw, 5rem);
-  line-height: 0.85;
-  text-shadow: 0 3px 18px rgba(0, 0, 0, 0.85), 0 1px 3px rgba(0, 0, 0, 0.9);
+  margin: 0;
+  font-size: clamp(2.6rem, 5vw, 4.6rem);
+  line-height: 0.84;
+  text-shadow: 0 3px 22px rgba(0, 0, 0, 0.9), 0 1px 4px rgba(0, 0, 0, 0.95);
 }
 
 h1 {
@@ -4005,8 +4014,24 @@ tr.third td:first-child {
   }
 
   .hero {
-    max-height: none;
-    padding: 1rem 0.9rem 1.4rem;
+    height: auto;
+    aspect-ratio: 1448 / 680;
+    align-items: end;
+    padding: 1rem 0.9rem 1.2rem;
+  }
+
+  /* On a narrow screen the whole band shows; fade from the bottom instead. */
+  .hero-overlay {
+    background: linear-gradient(
+      0deg,
+      rgba(8, 8, 8, 0.92) 0%,
+      rgba(8, 8, 8, 0.5) 26%,
+      rgba(8, 8, 8, 0) 54%
+    );
+  }
+
+  .hero-content {
+    max-width: 100%;
   }
 
   h1 {
