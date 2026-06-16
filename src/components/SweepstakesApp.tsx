@@ -90,6 +90,8 @@ const defaultTournament: Tournament = {
   createdAt: new Date(0).toISOString(),
 };
 
+const matchDayLocale = "en-GB";
+const matchDayTimeZone = "Europe/London";
 const groupLetters = "ABCDEFGHIJKL".split("") as PredictionStep[];
 const knockoutPredictionSteps: Array<{ id: PredictionStep; label: string; short: string }> = [
   { id: "round32", label: "Round of 32", short: "R32" },
@@ -157,10 +159,11 @@ function isLocked() {
 
 function formatFixtureDate(fixture: Pick<ResolvedFixture, "date" | "time">) {
   return (fixtureKickoffDate(fixture) ?? new Date(`${fixture.date}T12:00:00Z`)).toLocaleDateString(
-    [],
+    matchDayLocale,
     {
       month: "short",
       day: "numeric",
+      timeZone: matchDayTimeZone,
     },
   );
 }
@@ -168,16 +171,44 @@ function formatFixtureDate(fixture: Pick<ResolvedFixture, "date" | "time">) {
 function formatFixtureTime(fixture: Pick<ResolvedFixture, "date" | "time">) {
   const kickoff = fixtureKickoffDate(fixture);
   if (!kickoff) return fixture.time;
-  const time = kickoff.toLocaleTimeString([], {
+  const time = kickoff.toLocaleTimeString(matchDayLocale, {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: matchDayTimeZone,
   });
-  const zone = Intl.DateTimeFormat([], { timeZoneName: "short" })
+  const zone = Intl.DateTimeFormat(matchDayLocale, {
+    timeZone: matchDayTimeZone,
+    timeZoneName: "short",
+  })
     .formatToParts(kickoff)
     .find((part) => part.type === "timeZoneName")?.value;
   const venueTime = fixture.time.match(/^(\d{1,2}:\d{2}) UTC[+-]\d{1,2}$/)?.[1];
   const viewerTime = zone ? `${time} ${zone}` : time;
   return venueTime ? `${viewerTime} (${venueTime} local)` : viewerTime;
+}
+
+function localDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat(matchDayLocale, {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: matchDayTimeZone,
+    year: "numeric",
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value ?? "1970";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+  return `${year}-${month}-${day}`;
+}
+
+function defaultMatchDate(fixtures: Array<Pick<ResolvedFixture, "date">>, now = new Date()) {
+  const matchDates = Array.from(new Set(fixtures.map((fixture) => fixture.date))).sort();
+  const today = localDateKey(now);
+  return (
+    matchDates.find((date) => date === today) ??
+    matchDates.find((date) => date > today) ??
+    matchDates.at(-1) ??
+    ""
+  );
 }
 
 function readLocal<T>(key: string, fallback: T) {
@@ -2145,7 +2176,7 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
   const heroImage = isDefaultTournament ? "/hero-team-full.jpg" : "/tournament-generic-banner.png";
   const brandName = tournament.name;
   const shareEnabled = !isDefaultTournament;
-  const [tab, setTab] = useState<Tab>("predict");
+  const [tab, setTab] = useState<Tab>("matchday");
   const [name, setName] = useState("");
   const [picks, setPicks] = useState<Record<number, MatchPick>>(createEmptyPicks);
   const [bonuses, setBonuses] = useState<BonusPicks>(emptyBonuses);
@@ -2160,7 +2191,9 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
   const [hydrated, setHydrated] = useState(false);
   const [resultsSyncing, setResultsSyncing] = useState(false);
   const [resultsStatus, setResultsStatus] = useState("");
-  const [selectedMatchDate, setSelectedMatchDate] = useState("");
+  const [selectedMatchDate, setSelectedMatchDate] = useState(() =>
+    defaultMatchDate(resolveFixtures(createEmptyPicks())),
+  );
   const [shareStatus, setShareStatus] = useState("");
 
   const applyResultsPayload = useCallback((payload: ResultsPayload) => {
@@ -2233,9 +2266,6 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
       setSubmissions(seededSubmissions);
       setResults(readLocal(scopedResultsKey, blankResults));
       setSubmittedEntryId(storedSubmittedEntryId);
-      if (storedSubmittedEntryId && seededSubmissions.some((submission) => submission.id === storedSubmittedEntryId)) {
-        setTab("leaderboard");
-      }
       setHydrated(true);
     });
 
@@ -2435,7 +2465,9 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
     return groupTeams().find((item) => item.group === activeStepMeta.id)?.teams ?? [];
   }, [activeStepMeta]);
   const navItems: Array<{ key: Tab; label: string; icon: ReactNode }> = [
-    { key: "predict", label: hasSubmittedEntry ? "My entry" : "Predict matches", icon: <Sparkles size={18} /> },
+    ...(!hasSubmittedEntry
+      ? [{ key: "predict" as const, label: "Predict matches", icon: <Sparkles size={18} /> }]
+      : []),
     { key: "matchday", label: "Match days", icon: <CalendarDays size={18} /> },
     { key: "leaderboard", label: "Leaderboard", icon: <Trophy size={18} /> },
     { key: "rules", label: "Scoring", icon: <CheckCircle2 size={18} /> },
