@@ -72,6 +72,8 @@
   .chip img{width:22px;height:22px;border-radius:50%;object-fit:cover;border:2px solid var(--c,#999)}
   .chip .sw{width:10px;height:10px;border-radius:50%;background:var(--c,#999);display:none}
   .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .chip.dimmed{opacity:.68;filter:grayscale(.35);background:#eee8d9;color:#5f574d;border-color:#d5ccb9}
+  .chip.dimmed img{border-color:#bdb4a7}
   .chip.muted{opacity:.36;filter:grayscale(1);background:#e7e1d2;color:#7b7367;border-color:#c9c0ae}
   .chip.muted img{border-color:#9c9488}
   .chip.me{border-color:var(--green);box-shadow:0 0 0 2px rgba(26,122,26,.18)}
@@ -335,10 +337,11 @@ let meI=null,hoverI=null;
 const mutedPlayers=new Set();
 let t=0,playing=false,raf=0,lastTs=0,lastStage=-1,stepMs=2200;
 
-function isMuted(i){return (meI!==null&&i!==meI)||(mutedPlayers.has(i)&&i!==meI);}
+function isHardMuted(i){return mutedPlayers.has(i)&&i!==meI;}
+function isSoftDimmed(i){return meI!==null&&i!==meI&&!isHardMuted(i);}
 function toggleFocus(i){if(i===meI)return;mutedPlayers.has(i)?mutedPlayers.delete(i):mutedPlayers.add(i);syncFocusUI();redraw();}
 function syncFocusUI(){
-  chips.forEach((c,i)=>{c.classList.toggle('muted',isMuted(i));c.classList.toggle('me',i===meI);});
+  chips.forEach((c,i)=>{c.classList.toggle('muted',isHardMuted(i));c.classList.toggle('dimmed',isSoftDimmed(i));c.classList.toggle('me',i===meI);});
   meSelWrap?.classList.toggle('active',meI!==null);
   document.getElementById('clearFocus').disabled=mutedPlayers.size===0&&meI===null;
   const lb=labelEls; // me badge
@@ -366,12 +369,13 @@ function draw(t){
   // emphasis per line
   lineEls.forEach((el,i)=>{
     let op,w;
-    const muted=isMuted(i);
-    if(muted){op=0.035;w=1.2;}
+    const hardMuted=isHardMuted(i),softDimmed=isSoftDimmed(i);
+    if(hardMuted){op=0.035;w=1.2;}
+    else if(softDimmed){op=0.28;w=1.8;}
     else if(spot!=null){op=(i===spot)?1:0.28;w=(i===spot)?4.4:1.8;}
     else{op=(i===leadI)?1:0.5;w=(i===leadI)?4.2:2.4;}
-    if(meI===i&&!muted){op=Math.max(op,0.98);w=Math.max(w,5);}
-    if(muted){el.setAttribute('stroke','#9a9388');}
+    if(meI===i&&!hardMuted){op=Math.max(op,0.98);w=Math.max(w,5);}
+    if(hardMuted){el.setAttribute('stroke','#9a9388');}
     else{el.setAttribute('stroke',meI===i?'#1a7a1a':PLAYERS[i].c);}
     el.style.opacity=op;el.setAttribute('stroke-width',w);
   });
@@ -387,14 +391,15 @@ function draw(t){
     L.img.setAttribute('x',cx-14);L.img.setAttribute('y',cy-14);
     L.ring.setAttribute('stroke',meI===o.i?'#1a7a1a':PLAYERS[o.i].c);
     L.ring.setAttribute('stroke-width',(o.i===spot||meI===o.i)?3.4:2.5);
-    const muted=isMuted(o.i);
-    L.ring.setAttribute('opacity',muted?0.32:1);
+    const hardMuted=isHardMuted(o.i),softDimmed=isSoftDimmed(o.i);
+    L.ring.setAttribute('opacity',hardMuted?0.32:softDimmed?0.58:1);
     L.txt.setAttribute('x',cx+22);L.txt.setAttribute('y',cy);
     L.txt.querySelector('.sc').textContent= mode==='score'?(' '+Math.round(o.score)) : (' #'+(Math.round(o.rank)+1)+' ('+Math.round(o.score)+' pts)');
     L.badge.setAttribute('x',cx+22);L.badge.setAttribute('y',cy+13);
     L.conn.setAttribute('x1',o.tx);L.conn.setAttribute('y1',o.ty);L.conn.setAttribute('x2',cx-15);L.conn.setAttribute('y2',cy);
     let lo;
-    if(muted) lo=0.1;
+    if(hardMuted) lo=0.1;
+    else if(softDimmed) lo=0.38;
     else if(spot!=null) lo=(o.i===spot)?1:(o.i===meI?0.55:0.38);
     else lo=(o.i===leadI||o.i===meI)?1:0.85;
     L.g.style.opacity=lo;
