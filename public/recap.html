@@ -72,9 +72,12 @@
   .chip img{width:22px;height:22px;border-radius:50%;object-fit:cover;border:2px solid var(--c,#999)}
   .chip .sw{width:10px;height:10px;border-radius:50%;background:var(--c,#999);display:none}
   .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .chip.muted{opacity:.36;filter:grayscale(1);background:#e7e1d2;color:#7b7367;border-color:#c9c0ae}
+  .chip.muted img{border-color:#9c9488}
   .chip.me{border-color:var(--green);box-shadow:0 0 0 2px rgba(26,122,26,.18)}
   .chip.me::after{content:"★ me";color:var(--green);font-size:9px;font-weight:700;margin-left:2px}
   .chip.on.me::after{color:#7fe07f}
+  .chip.muted.me::after{color:#6f8b6f}
 
   .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:16px}
   button.ctl{font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-weight:700;font-size:13px;cursor:pointer;border:2px solid var(--ink);background:var(--ink);color:#fff;padding:9px 16px;border-radius:8px;transition:.15s;display:flex;align-items:center;gap:7px}
@@ -166,7 +169,7 @@
     <div class="meSel">★ I am
       <select id="meSel"><option value="-1">— pick your entry —</option></select>
     </div>
-    <button class="ctl ghost" id="clearFocus" disabled>✕ Clear spotlight</button>
+    <button class="ctl ghost" id="clearFocus" disabled>✕ Reset lines</button>
     <div class="scrub"><span>Stage</span><input type="range" id="scrub" min="0" value="0"><span id="scrubLbl">1</span></div>
   </div>
 
@@ -256,6 +259,7 @@ if(!meta.completedMatches){
   raceStatus.textContent='Entries loaded. Official scores have not landed yet.';
   raceStatus.classList.add('warn');
 }
+const tournamentComplete=(meta.completedMatches||0)>=(meta.totalMatches||104);
 const N=PLAYERS.length,S=STAGES.length;
 const totals=PLAYERS.map(p=>{let a=0;return p.g.map(x=>a+=x);});
 function rankAt(stage){return PLAYERS.map((p,i)=>({i,t:totals[i][stage]}))
@@ -266,7 +270,7 @@ const MOMENTS=[];
 (()=>{const lead=rankAt(0)[0].i;MOMENTS[0]={tag:"Out of the blocks",head:"Fast start",body:`${PLAYERS[lead].name} tops the table after the opening round.`,slug:PLAYERS[lead].slug,emoji:"🚀"};})();
 for(let s=1;s<S;s++){const prev=rankAt(s-1)[0].i,now=rankAt(s)[0].i;if(prev!==now)MOMENTS[s]={tag:"Lead change",head:"New leader!",body:`${PLAYERS[now].name} overtakes ${PLAYERS[prev].name} at the ${STAGES[s].lbl.toLowerCase()}.`,slug:PLAYERS[now].slug,emoji:"🔁"};}
 for(let s=1;s<S-1;s++){if(MOMENTS[s])continue;let best=-1,bi=-1;for(let i=0;i<N;i++){const d=RANKS[s-1][i]-RANKS[s][i];if(d>best){best=d;bi=i;}}if(best>=2)MOMENTS[s]={tag:"On the charge",head:"Big mover",body:`${PLAYERS[bi].name} climbs ${best} place${best>1?"s":""} at the ${STAGES[s].lbl.toLowerCase()}.`,slug:PLAYERS[bi].slug,emoji:"📈"};}
-(()=>{const c=rankAt(S-1)[0].i,p=rankAt(S-2)[0].i,sn=c!==p;MOMENTS[S-1]={tag:"Champion",head:"Title decided",body:sn?`${PLAYERS[c].name} snatches the crown from ${PLAYERS[p].name} on the final day!`:`${PLAYERS[c].name} holds on to lift the trophy.`,slug:PLAYERS[c].slug,emoji:"👑"};})();
+(()=>{const c=rankAt(S-1)[0].i,p=rankAt(Math.max(0,S-2))[0].i,sn=c!==p;MOMENTS[S-1]=tournamentComplete?{tag:"Champion",head:"Title decided",body:sn?`${PLAYERS[c].name} snatches the crown from ${PLAYERS[p].name} on the final day!`:`${PLAYERS[c].name} holds on to lift the trophy.`,slug:PLAYERS[c].slug,emoji:"👑"}:{tag:"Latest table",head:"Race checkpoint",body:`${PLAYERS[c].name} leads the live standings after ${STAGES[S-1].lbl.toLowerCase()}.`,slug:PLAYERS[c].slug,emoji:"📊"};})();
 function overall(){let cB=-99,cI=0,fB=-99,fI=0;for(let i=0;i<N;i++){const c=RANKS[0][i]-RANKS[S-1][i];if(c>cB){cB=c;cI=i;}let best=99;for(let s=0;s<S;s++)best=Math.min(best,RANKS[s][i]);const f=RANKS[S-1][i]-best;if(f>fB){fB=f;fI=i;}}return{cI,cB,fI,fB};}
 
 // geometry
@@ -328,13 +332,14 @@ const pipsEl=document.getElementById('pips');STAGES.forEach(()=>{const d=documen
 const pipEls=[...pipsEl.children];const scrub=document.getElementById('scrub');scrub.max=S-1;
 
 // ---- state ----
-let focusI=null,meI=null,hoverI=null;
+let meI=null,hoverI=null;
+const mutedPlayers=new Set();
 let t=0,playing=false,raf=0,lastTs=0,lastStage=-1,stepMs=2200;
 
-function toggleFocus(i){focusI=(focusI===i)?null:i;syncFocusUI();redraw();}
+function toggleFocus(i){mutedPlayers.has(i)?mutedPlayers.delete(i):mutedPlayers.add(i);syncFocusUI();redraw();}
 function syncFocusUI(){
-  chips.forEach((c,i)=>{c.classList.toggle('on',i===focusI);c.classList.toggle('me',i===meI);});
-  document.getElementById('clearFocus').disabled=focusI===null;
+  chips.forEach((c,i)=>{c.classList.toggle('muted',mutedPlayers.has(i));c.classList.toggle('me',i===meI);});
+  document.getElementById('clearFocus').disabled=mutedPlayers.size===0;
   const lb=labelEls; // me badge
   PLAYERS.forEach((p,i)=>lb[i].badge.textContent=(i===meI?'★ ME':''));
 }
@@ -355,15 +360,17 @@ function draw(t){
     tips.push({i,tx:nx,ty:yFor(i,cur,rcur),score:cur,rank:rcur});
   });
   const leadI=tips.slice().sort((a,b)=>b.score-a.score)[0].i;
-  const spot = focusI!=null?focusI : hoverI;
+  const spot = hoverI;
 
   // emphasis per line
   lineEls.forEach((el,i)=>{
     let op,w;
-    if(spot!=null){op=(i===spot)?1:0.08;w=(i===spot)?4.4:1.3;}
+    if(mutedPlayers.has(i)){op=0.035;w=1.2;}
+    else if(spot!=null){op=(i===spot)?1:0.28;w=(i===spot)?4.4:1.8;}
     else{op=(i===leadI)?1:0.5;w=(i===leadI)?4.2:2.4;}
-    if(meI===i){op=Math.max(op, spot!=null&&spot!==i?0.7:0.95);w=Math.max(w,3.2);}
-    el.setAttribute('stroke',meI===i?'#1a7a1a':PLAYERS[i].c);
+    if(meI===i&&!mutedPlayers.has(i)){op=Math.max(op, spot!=null&&spot!==i?0.7:0.95);w=Math.max(w,3.2);}
+    if(mutedPlayers.has(i)){el.setAttribute('stroke','#9a9388');}
+    else{el.setAttribute('stroke',meI===i?'#1a7a1a':PLAYERS[i].c);}
     el.style.opacity=op;el.setAttribute('stroke-width',w);
   });
 
@@ -378,12 +385,14 @@ function draw(t){
     L.img.setAttribute('x',cx-14);L.img.setAttribute('y',cy-14);
     L.ring.setAttribute('stroke',meI===o.i?'#1a7a1a':PLAYERS[o.i].c);
     L.ring.setAttribute('stroke-width',(o.i===spot||meI===o.i)?3.4:2.5);
+    L.ring.setAttribute('opacity',mutedPlayers.has(o.i)?0.32:1);
     L.txt.setAttribute('x',cx+22);L.txt.setAttribute('y',cy);
     L.txt.querySelector('.sc').textContent= mode==='score'?(' '+Math.round(o.score)) : (' #'+(Math.round(o.rank)+1));
     L.badge.setAttribute('x',cx+22);L.badge.setAttribute('y',cy+13);
     L.conn.setAttribute('x1',o.tx);L.conn.setAttribute('y1',o.ty);L.conn.setAttribute('x2',cx-15);L.conn.setAttribute('y2',cy);
     let lo;
-    if(spot!=null) lo=(o.i===spot)?1:(o.i===meI?0.55:0.12);
+    if(mutedPlayers.has(o.i)) lo=0.1;
+    else if(spot!=null) lo=(o.i===spot)?1:(o.i===meI?0.55:0.38);
     else lo=(o.i===leadI||o.i===meI)?1:0.85;
     L.g.style.opacity=lo;
   });
@@ -402,8 +411,8 @@ function showMoment(s){const m=MOMENTS[s];clearTimeout(momentTO);if(!m){momentEl
   if(s!==S-1)momentTO=setTimeout(()=>momentEl.classList.remove('show'),stepMs*0.95);}
 function showFinals(){const f=overall(),c=rankAt(S-1)[0].i,r=rankAt(S-1)[1]?.i??c,el=document.getElementById('finals');
   const card=(t,p,v,d,mine)=>`<div class="stat${mine?' mine':''}"><div class="st">${mine?'★ Your entry · ':''}${escapeHtml(t)}</div><div class="sv"><img src="${escapeHtml(playerAvatar(p))}" alt="">${escapeHtml(p.name)}</div><div class="sd"><b>${escapeHtml(v)}</b> · ${escapeHtml(d)}</div></div>`;
-  let html=card("Champion",PLAYERS[c],totals[c][S-1]+" pts","Lifts the Sweepstakes title.",c===meI)
-    +card("Runner-up",PLAYERS[r],totals[r][S-1]+" pts","Agonising on the final day.",r===meI)
+  let html=card("Current leader",PLAYERS[c],totals[c][S-1]+" pts","Top of the live table for now.",c===meI)
+    +card("Second place",PLAYERS[r],totals[r][S-1]+" pts","Still firmly in the title race.",r===meI)
     +card("Climber of the tournament",PLAYERS[f.cI],"+"+f.cB+" places","From the pack to the podium picture.",f.cI===meI)
     +card("Biggest collapse",PLAYERS[f.fI],"−"+f.fB+" places","Led early, faded late.",f.fI===meI);
   if(meI!=null&&meI!==c&&meI!==r&&meI!==f.cI&&meI!==f.fI){
@@ -423,7 +432,7 @@ function onStage(s){updateTicker(s);showMoment(s);}
 function tick(ts){if(!playing)return;if(!lastTs)lastTs=ts;const dt=ts-lastTs;lastTs=ts;t+=dt/stepMs;
   if(t>=S-1){t=S-1;draw(t);if(lastStage!==S-1){lastStage=S-1;onStage(S-1);}finale();stop();return;}
   draw(t);const cs=Math.floor(t);if(cs!==lastStage){lastStage=cs;onStage(cs);}raf=requestAnimationFrame(tick);}
-function finale(){showFinals();setTimeout(showChampion,800);}
+function finale(){showFinals();}
 function play(){if(t>=S-1){t=0;lastStage=-1;document.getElementById('finals').classList.remove('show');hideChampion();}
   playing=true;lastTs=0;document.getElementById('playBtn').textContent='⏸ Pause';const cs=Math.floor(t);if(cs!==lastStage){lastStage=cs;onStage(cs);}raf=requestAnimationFrame(tick);}
 function stop(){playing=false;cancelAnimationFrame(raf);document.getElementById('playBtn').textContent=t>=S-1?'▶ Replay':'▶ Play recap';}
@@ -434,8 +443,8 @@ scrub.oninput=e=>{stop();t=+e.target.value;lastStage=t;document.getElementById('
 document.getElementById('champClose').onclick=()=>{hideChampion();stop();t=0;lastStage=0;updateTicker(0);showMoment(0);draw(0);setTimeout(play,300);};
 document.getElementById('speeds').onclick=e=>{const b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');stepMs=+b.dataset.s;};
 document.getElementById('modeToggle').onclick=e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');document.getElementById('chartTitle').textContent=mode==='score'?'Cumulative points':'League position';buildGrid();redraw();};
-document.getElementById('clearFocus').onclick=()=>{focusI=null;syncFocusUI();redraw();};
-meSel.onchange=e=>{meI=+e.target.value;if(meI<0)meI=null;focusI=meI;syncFocusUI();redraw();};
+document.getElementById('clearFocus').onclick=()=>{mutedPlayers.clear();syncFocusUI();redraw();};
+meSel.onchange=e=>{meI=+e.target.value;if(meI<0)meI=null;syncFocusUI();redraw();};
 
 // init
 buildGrid();syncFocusUI();updateTicker(0);draw(0);
