@@ -141,11 +141,7 @@
 
   <div class="chartcard">
     <div class="charthead">
-      <span class="h" id="chartTitle">Cumulative points</span>
-      <div class="toggle" id="modeToggle">
-        <button data-m="score" class="on">Points</button>
-        <button data-m="rank">Position</button>
-      </div>
+      <span class="h" id="chartTitle">League position <span aria-hidden="true">(points)</span></span>
     </div>
     <svg id="chart" viewBox="0 0 1000 540" preserveAspectRatio="xMidYMid meet" aria-label="Line chart race">
       <defs id="defs"></defs>
@@ -284,7 +280,7 @@ const defs=document.getElementById('defs'),gGrid=document.getElementById('grid')
   gLines=document.getElementById('lines'),gLabels=document.getElementById('labels'),nowline=document.getElementById('nowline');
 nowline.setAttribute('y1',mT);nowline.setAttribute('y2',VH-mB);
 
-let mode='score';
+let mode='rank';
 function buildGrid(){
   gGrid.innerHTML='';
   const mk=(y,label)=>{const ln=document.createElementNS('http://www.w3.org/2000/svg','line');
@@ -387,7 +383,7 @@ function draw(t){
     L.ring.setAttribute('stroke-width',(o.i===spot||meI===o.i)?3.4:2.5);
     L.ring.setAttribute('opacity',mutedPlayers.has(o.i)?0.32:1);
     L.txt.setAttribute('x',cx+22);L.txt.setAttribute('y',cy);
-    L.txt.querySelector('.sc').textContent= mode==='score'?(' '+Math.round(o.score)) : (' #'+(Math.round(o.rank)+1));
+    L.txt.querySelector('.sc').textContent= mode==='score'?(' '+Math.round(o.score)) : (' #'+(Math.round(o.rank)+1)+' ('+Math.round(o.score)+' pts)');
     L.badge.setAttribute('x',cx+22);L.badge.setAttribute('y',cy+13);
     L.conn.setAttribute('x1',o.tx);L.conn.setAttribute('y1',o.ty);L.conn.setAttribute('x2',cx-15);L.conn.setAttribute('y2',cy);
     let lo;
@@ -442,7 +438,6 @@ document.getElementById('restartBtn').onclick=()=>{stop();t=0;lastStage=0;docume
 scrub.oninput=e=>{stop();t=+e.target.value;lastStage=t;document.getElementById('finals').classList.remove('show');hideChampion();updateTicker(t);showMoment(t);draw(t);if(t>=S-1)finale();};
 document.getElementById('champClose').onclick=()=>{hideChampion();stop();t=0;lastStage=0;updateTicker(0);showMoment(0);draw(0);setTimeout(play,300);};
 document.getElementById('speeds').onclick=e=>{const b=e.target.closest('button');if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');stepMs=+b.dataset.s;};
-document.getElementById('modeToggle').onclick=e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;[...e.currentTarget.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');document.getElementById('chartTitle').textContent=mode==='score'?'Cumulative points':'League position';buildGrid();redraw();};
 document.getElementById('clearFocus').onclick=()=>{mutedPlayers.clear();syncFocusUI();redraw();};
 meSel.onchange=e=>{meI=+e.target.value;if(meI<0)meI=null;syncFocusUI();redraw();};
 
