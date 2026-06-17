@@ -126,7 +126,19 @@
   .moment .mhead{font-family:var(--display);text-transform:uppercase;font-weight:700;font-size:1.5rem;line-height:1;display:flex;gap:.4em;align-items:center}
   .moment .mbody{font-style:italic;color:#d9d2c4;font-size:13px;margin-top:7px;line-height:1.4}
   .moment .mava{position:absolute;right:-14px;bottom:-14px;width:96px;height:96px;border-radius:50%;object-fit:cover;opacity:.22;border:3px solid rgba(255,255,255,.2)}
+  /* Embedded in the app's Title Race tab: the parent already shows the hero
+     banner, so hide the recap's own masthead, title, blurb and status line. */
+  .embed body{background:transparent}
+  .embed body::before{display:none}
+  .embed .wrap{padding-top:6px}
+  .embed .kicker,
+  .embed h1.title,
+  .embed .dek,
+  .embed .race-status{display:none}
+  /* No pop-up "key moment" toasts inside the embedded tab. */
+  .embed .moment{display:none!important}
 </style>
+<script>if(new URLSearchParams(location.search).has('embed'))document.documentElement.classList.add('embed');</script>
 </head>
 <body>
 <div class="wrap">

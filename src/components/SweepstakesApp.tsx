@@ -2537,8 +2537,8 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
   };
   const activeHero = heroData[tab];
   const recapHref = isDefaultTournament
-    ? "/recap.html"
-    : `/recap.html?tournament=${encodeURIComponent(tournament.slug)}`;
+    ? "/recap.html?embed=1"
+    : `/recap.html?tournament=${encodeURIComponent(tournament.slug)}&embed=1`;
 
   function moveStep(offset: number) {
     const next = Math.max(0, Math.min(predictionSteps.length - 1, activeStepIndex + offset));
