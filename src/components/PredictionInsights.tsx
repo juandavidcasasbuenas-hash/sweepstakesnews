@@ -211,6 +211,7 @@ export default function PredictionInsights({ tournament = defaultTournament }: P
     : `${localSubmissionsKey}:${tournament.slug}`;
   const heroImage = isDefaultTournament ? "/hero-banner-site.jpg" : "/tournament-generic-banner.png";
   const gameHref = isDefaultTournament ? "/" : `/t/${tournament.slug}`;
+  const goalsHref = isDefaultTournament ? "/goals-assists" : `/t/${tournament.slug}/goals-assists`;
 
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -403,6 +404,10 @@ export default function PredictionInsights({ tournament = defaultTournament }: P
           <a className="tab-link" href={gameHref}>
             <ChevronLeft size={18} />
             <span>Back to the game</span>
+          </a>
+          <a className="tab-link" href={goalsHref}>
+            <Medal size={18} />
+            <span>Goals & Assists</span>
           </a>
           <a className="tab-link active" href="#" aria-current="page" onClick={(event) => event.preventDefault()}>
             <BarChart3 size={18} />

@@ -12,7 +12,7 @@ import {
   Eye,
   ImageDown,
   LockKeyhole,
-  RefreshCw,
+  Medal,
   Shuffle,
   Sparkles,
   Trophy,
@@ -1527,8 +1527,6 @@ function MatchDayView({
   results,
   selectedDate,
   onDateChange,
-  onCheckResults,
-  resultsSyncing,
   ownSubmissionId,
 }: {
   fixtures: ResolvedFixture[];
@@ -1536,8 +1534,6 @@ function MatchDayView({
   results: TournamentResults;
   selectedDate: string;
   onDateChange: (date: string) => void;
-  onCheckResults: () => void;
-  resultsSyncing: boolean;
   ownSubmissionId?: string | null;
 }) {
   const resultsResolved = useMemo(
@@ -1572,14 +1568,6 @@ function MatchDayView({
           <div>
             <span className="eyebrow">Match day view</span>
             <h2>Predictions by fixture</h2>
-            <button
-              className="secondary-button icon-button compact-btn matchday-check-button"
-              onClick={onCheckResults}
-              disabled={resultsSyncing}
-            >
-              <RefreshCw size={14} />
-              {resultsSyncing ? "Checking..." : "Check for results"}
-            </button>
           </div>
         </div>
       </div>
@@ -2560,6 +2548,13 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
           </a>
           <a
             className="tab-link"
+            href={isDefaultTournament ? "/goals-assists" : `/t/${tournament.slug}/goals-assists`}
+          >
+            <Medal size={18} />
+            <span>Goals & Assists</span>
+          </a>
+          <a
+            className="tab-link"
             href={isDefaultTournament ? "/insights" : `/t/${tournament.slug}/insights`}
           >
             <CircleQuestionMark size={18} />
@@ -2808,8 +2803,6 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
                   results={results}
                   selectedDate={selectedMatchDate}
                   onDateChange={setSelectedMatchDate}
-                  onCheckResults={() => void loadLiveResults("force")}
-                  resultsSyncing={resultsSyncing}
                   ownSubmissionId={ownSubmission?.id ?? submittedEntryId}
                 />
               </div>
@@ -2843,10 +2836,6 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
                   >
                     <ImageDown size={14} />
                     Export PNG
-                  </button>
-                  <button className="secondary-button icon-button compact-btn" onClick={() => loadLiveResults("force")}>
-                    <RefreshCw size={14} />
-                    Check for results
                   </button>
                 </div>
                 {resultsStatus ? (

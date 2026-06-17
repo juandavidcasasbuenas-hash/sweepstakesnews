@@ -33,6 +33,7 @@ CRON_SECRET=
 ADMIN_RESULTS_KEY=
 WC2026_API_KEY=
 RESULTS_CACHE_SECONDS=90
+PLAYER_STATS_DAILY_CALL_BUDGET=120
 ```
 
 ## Results syncing
@@ -81,3 +82,18 @@ Provider calls are deliberately throttled for the WC2026 free tier:
   provider returns no completed matches or a rate-limit warning.
 - `RESULTS_CACHE_SECONDS` can be set higher, but values below 1800 seconds are
   clamped to 1800 to protect the API key.
+
+## Goals and assists syncing
+
+`/goals-assists` shows cached leading scorers and assists. Page views never call
+the provider. The nightly cron refreshes match results once, then fetches
+`/matches/:id/stats` only for completed matches that are not already cached:
+
+```text
+/api/cron/update-goals-assists
+```
+
+The default player-stat cap is 120 calls/day. With the existing 90-call results
+cap, the app can spend at most 210 provider calls/day by default. On a 500
+calls/day key that leaves 290 calls of headroom, and a full-tournament catch-up
+after the final is still bounded by 104 match-stat calls plus 1 results call.
