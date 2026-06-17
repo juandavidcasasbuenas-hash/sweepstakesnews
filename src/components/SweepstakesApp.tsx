@@ -3,9 +3,11 @@
 import {
   BarChart3,
   CalendarDays,
+  CarFront,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  CircleQuestionMark,
   ClipboardCheck,
   Download,
   Eye,
@@ -2629,14 +2631,14 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
                 : `/recap.html?tournament=${encodeURIComponent(tournament.slug)}`
             }
           >
-            <BarChart3 size={18} />
+            <CarFront size={18} />
             <span>Title Race</span>
           </a>
           <a
             className="tab-link"
             href={isDefaultTournament ? "/insights" : `/t/${tournament.slug}/insights`}
           >
-            <BarChart3 size={18} />
+            <CircleQuestionMark size={18} />
             <span>Fun facts</span>
           </a>
         </nav>
