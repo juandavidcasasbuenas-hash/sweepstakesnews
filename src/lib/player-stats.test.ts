@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   normalizeMatchPlayerStats,
+  playerStatsCallsLast24Hours,
   rebuildPlayerStats,
 } from "@/lib/player-stats";
 
@@ -58,5 +59,25 @@ test("normalizes goal timeline events and aggregates scorer and assist tables", 
   assert.equal(
     stats.scorers.some((row) => row.player === "Defender One"),
     false,
+  );
+});
+
+test("counts player stat API calls in the last 24 hours", () => {
+  assert.equal(
+    playerStatsCallsLast24Hours(
+      {
+        scorers: [],
+        assists: [],
+        matchStats: {},
+        updatedAt: "2026-06-17T00:00:00.000Z",
+        providerCallTimestamps: [
+          "2026-06-16T11:59:59.000Z",
+          "2026-06-16T12:00:00.000Z",
+          "2026-06-17T08:00:00.000Z",
+        ],
+      },
+      new Date("2026-06-17T12:00:00.000Z"),
+    ),
+    2,
   );
 });

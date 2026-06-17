@@ -80,6 +80,7 @@ export type TournamentResults = {
   providerWarning?: string;
   manualOverride?: boolean;
   providerCalls?: { date: string; count: number };
+  providerCallTimestamps?: string[];
   playerStats?: PlayerStatsState;
 };
 
@@ -119,6 +120,7 @@ export type PlayerStatsState = {
   providerCheckedAt?: string;
   providerWarning?: string;
   providerCalls?: { date: string; count: number };
+  providerCallTimestamps?: string[];
 };
 
 export type TeamStanding = {

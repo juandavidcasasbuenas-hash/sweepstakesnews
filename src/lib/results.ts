@@ -596,6 +596,9 @@ export async function refreshStoredResults(request: Request): Promise<ResultsWri
   const providerCalls = isSample
     ? stored.results.providerCalls
     : bumpedProviderCalls(stored.results);
+  const providerCallTimestamps = isSample
+    ? stored.results.providerCallTimestamps
+    : bumpedProviderCallTimestamps(stored.results);
 
   let results: TournamentResults;
   try {
@@ -607,19 +610,30 @@ export async function refreshStoredResults(request: Request): Promise<ResultsWri
       return { ...stored, warning: error.message };
     }
     const warning = error instanceof Error ? error.message : "Could not refresh results";
-    const cached = await cacheProviderWarning(stored, warning, providerCalls);
+    const cached = await cacheProviderWarning(
+      stored,
+      warning,
+      providerCalls,
+      providerCallTimestamps,
+    );
     return { ...cached, warning };
   }
 
   if (!isSample && !hasResults(results)) {
     const warning = "Results provider returned no scored matches";
-    const cached = await cacheProviderWarning(stored, warning, providerCalls);
+    const cached = await cacheProviderWarning(
+      stored,
+      warning,
+      providerCalls,
+      providerCallTimestamps,
+    );
     return { ...cached, warning };
   }
   return writeStoredResults({
     ...results,
     playerStats: stored.results.playerStats,
     providerCalls,
+    providerCallTimestamps,
   });
 }
 
@@ -683,6 +697,22 @@ function providerCallsToday(results: TournamentResults, now = new Date()) {
   return results.providerCalls?.date === utcDay(now) ? results.providerCalls.count : 0;
 }
 
+function providerCallTimestampsSince(
+  results: Pick<TournamentResults, "providerCallTimestamps">,
+  since: Date,
+) {
+  const sinceMs = since.getTime();
+  return (results.providerCallTimestamps ?? []).filter((timestamp) => {
+    const time = new Date(timestamp).getTime();
+    return Number.isFinite(time) && time >= sinceMs;
+  });
+}
+
+export function providerCallsLast24Hours(results: TournamentResults, now = new Date()) {
+  const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  return providerCallTimestampsSince(results, since).length;
+}
+
 export function providerCallBudget(results: TournamentResults, now = new Date()) {
   const cap = dailyCallBudgetCap();
   const count = providerCallsToday(results, now);
@@ -691,6 +721,11 @@ export function providerCallBudget(results: TournamentResults, now = new Date())
 
 function bumpedProviderCalls(results: TournamentResults, now = new Date()) {
   return { date: utcDay(now), count: providerCallsToday(results, now) + 1 };
+}
+
+function bumpedProviderCallTimestamps(results: TournamentResults, now = new Date()) {
+  const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  return [...providerCallTimestampsSince(results, since), now.toISOString()];
 }
 
 class ProviderThrottleError extends Error {}
@@ -722,12 +757,14 @@ async function cacheProviderWarning(
   stored: ResultsRead,
   warning: string,
   providerCalls?: TournamentResults["providerCalls"],
+  providerCallTimestamps?: TournamentResults["providerCallTimestamps"],
 ) {
   const results = {
     ...stored.results,
     providerCheckedAt: new Date().toISOString(),
     providerWarning: warning,
     ...(providerCalls ? { providerCalls } : {}),
+    ...(providerCallTimestamps ? { providerCallTimestamps } : {}),
   };
   try {
     return await writeStoredResults(results);

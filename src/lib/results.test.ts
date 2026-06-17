@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeGenericJson } from "@/lib/results";
+import { normalizeGenericJson, providerCallsLast24Hours } from "@/lib/results";
 
 const completedResults = [
   { id: 2, match_number: 1, home_team: "Mexico", away_team: "South Africa", home_score: 2, away_score: 0 },
@@ -98,4 +98,23 @@ test("rejects a numeric fallback when its fixture contradicts supplied teams", (
   ]);
 
   assert.deepEqual(results.matches, {});
+});
+
+test("counts result provider calls in the last 24 hours", () => {
+  assert.equal(
+    providerCallsLast24Hours(
+      {
+        matches: {},
+        bonuses: { topScorer: "", goldenBall: "", mostGoalsTeam: "" },
+        updatedAt: "2026-06-17T00:00:00.000Z",
+        providerCallTimestamps: [
+          "2026-06-16T11:59:59.000Z",
+          "2026-06-16T13:00:00.000Z",
+          "2026-06-17T11:59:59.000Z",
+        ],
+      },
+      new Date("2026-06-17T12:00:00.000Z"),
+    ),
+    2,
+  );
 });

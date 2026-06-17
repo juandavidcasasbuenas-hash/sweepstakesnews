@@ -254,6 +254,22 @@ function providerCallsToday(stats: PlayerStatsState, now = new Date()) {
   return stats.providerCalls?.date === utcDay(now) ? stats.providerCalls.count : 0;
 }
 
+function providerCallTimestampsSince(
+  stats: Pick<PlayerStatsState, "providerCallTimestamps">,
+  since: Date,
+) {
+  const sinceMs = since.getTime();
+  return (stats.providerCallTimestamps ?? []).filter((timestamp) => {
+    const time = new Date(timestamp).getTime();
+    return Number.isFinite(time) && time >= sinceMs;
+  });
+}
+
+export function playerStatsCallsLast24Hours(stats: PlayerStatsState, now = new Date()) {
+  const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  return providerCallTimestampsSince(stats, since).length;
+}
+
 export function playerStatsProviderBudget(stats: PlayerStatsState, now = new Date()) {
   const cap = dailyCallBudgetCap();
   const count = providerCallsToday(stats, now);
@@ -262,6 +278,16 @@ export function playerStatsProviderBudget(stats: PlayerStatsState, now = new Dat
 
 function bumpedProviderCalls(stats: PlayerStatsState, increment: number, now = new Date()) {
   return { date: utcDay(now), count: providerCallsToday(stats, now) + increment };
+}
+
+function bumpedProviderCallTimestamps(
+  stats: PlayerStatsState,
+  increment: number,
+  now = new Date(),
+) {
+  const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const nextCalls = Array.from({ length: increment }, () => now.toISOString());
+  return [...providerCallTimestampsSince(stats, since), ...nextCalls];
 }
 
 async function fetchJson(url: string, init?: RequestInit) {
@@ -370,6 +396,7 @@ export async function refreshStoredPlayerStats(): Promise<PlayerStatsWrite> {
   const saved = await writePlayerStats(stored.results, {
     ...stats,
     providerCalls: bumpedProviderCalls(current, spentCalls),
+    providerCallTimestamps: bumpedProviderCallTimestamps(current, spentCalls),
     providerWarning: warning,
   });
 

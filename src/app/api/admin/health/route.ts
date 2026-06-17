@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { hasSupabaseConfig, getSupabase } from "@/lib/supabase";
 import {
+  providerCallsLast24Hours,
   providerCallBudget,
   readStoredResults,
   resultsPollTier,
@@ -8,6 +9,7 @@ import {
 } from "@/lib/results";
 import {
   playerStatsFromResults,
+  playerStatsCallsLast24Hours,
   playerStatsProviderBudget,
 } from "@/lib/player-stats";
 
@@ -115,6 +117,7 @@ export async function GET(request: Request) {
   let playerStatsUpdatedAt = "";
   let playerStatsWarning = "";
   let playerStatsBudget: { cap: number; count: number; exhausted: boolean } | null = null;
+  let apiCallsLast24Hours = 0;
   try {
     const stored = await readStoredResults();
     const playerStats = playerStatsFromResults(stored.results);
@@ -127,6 +130,9 @@ export async function GET(request: Request) {
     playerStatsUpdatedAt = playerStats.updatedAt;
     playerStatsWarning = playerStats.providerWarning ?? "";
     playerStatsBudget = playerStatsProviderBudget(playerStats);
+    apiCallsLast24Hours =
+      providerCallsLast24Hours(stored.results) +
+      playerStatsCallsLast24Hours(playerStats);
     checks.push(
       check(
         "Provider call budget",
@@ -163,6 +169,15 @@ export async function GET(request: Request) {
         `${playerStatsBudget.count} of ${playerStatsBudget.cap} daily player-stat calls used${
           playerStatsBudget.exhausted ? "; refresh paused until midnight UTC" : ""
         }.`,
+      ),
+    );
+    checks.push(
+      check(
+        "API calls in last 24 hours",
+        apiCallsLast24Hours >= 450 ? "warn" : "ok",
+        `${apiCallsLast24Hours} tracked provider call${
+          apiCallsLast24Hours === 1 ? "" : "s"
+        } in the rolling 24-hour window. Tracking is exact for calls made after this counter was added.`,
       ),
     );
     checks.push(
@@ -208,6 +223,7 @@ export async function GET(request: Request) {
       playerStatsUpdatedAt,
       playerStatsWarning,
       playerStatsBudget,
+      apiCallsLast24Hours,
       pollTier,
       pollTtlSeconds,
       providerBudget,
