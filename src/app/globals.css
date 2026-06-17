@@ -3863,7 +3863,9 @@ tr.third td:first-child {
   }
 
   .tournament-rail {
-    position: static;
+    position: sticky;
+    top: 0;
+    z-index: 50;
     height: auto;
     grid-template-columns: minmax(160px, auto) 1fr;
     grid-template-rows: auto;
@@ -3871,6 +3873,7 @@ tr.third td:first-child {
     padding: 0;
     border-right: none;
     border-bottom: 4px solid var(--red);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
   }
 
   .rail-note {
