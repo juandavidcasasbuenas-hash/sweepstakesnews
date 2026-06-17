@@ -46,6 +46,7 @@ type SubmissionsPayload = {
 
 type PredictionInsightsProps = {
   tournament?: Tournament;
+  embedded?: boolean;
 };
 
 function readLocal<T>(key: string, fallback: T) {
@@ -201,7 +202,10 @@ function MatchSplitCard({
   );
 }
 
-export default function PredictionInsights({ tournament = defaultTournament }: PredictionInsightsProps) {
+export default function PredictionInsights({
+  tournament = defaultTournament,
+  embedded = false,
+}: PredictionInsightsProps) {
   const isDefaultTournament = tournament.slug === defaultTournament.slug;
   const submissionsUrl = isDefaultTournament
     ? "/api/submissions"
@@ -381,64 +385,8 @@ export default function PredictionInsights({ tournament = defaultTournament }: P
   const goalLeader = goalRanking[0];
   const goalMin = goalRanking[goalRanking.length - 1];
 
-  return (
-    <main className="arena-layout">
-      <aside className="tournament-rail">
-        <div className="rail-brand">
-          <span className="rail-crest" aria-hidden="true">
-            <Image
-              src="/football-logo.png"
-              alt=""
-              width={52}
-              height={52}
-              loading="eager"
-              className="rail-logo-image"
-            />
-          </span>
-          <div className="rail-brand-copy">
-            <strong>{tournament.name}</strong>
-            <span>World Cup 2026</span>
-          </div>
-        </div>
-        <nav className="tabs" aria-label="Main sections">
-          <a className="tab-link" href={gameHref}>
-            <ChevronLeft size={18} />
-            <span>Back to the game</span>
-          </a>
-          <a className="tab-link" href={goalsHref}>
-            <Medal size={18} />
-            <span>Goals & Assists</span>
-          </a>
-          <a className="tab-link active" href="#" aria-current="page" onClick={(event) => event.preventDefault()}>
-            <BarChart3 size={18} />
-            <span>Fun facts</span>
-          </a>
-        </nav>
-        <div className="rail-note">
-          <span>Built from</span>
-          <strong>{entriesLabel(submissions.length)} locked in</strong>
-        </div>
-      </aside>
-
-      <div className="arena-main">
-        <section className="hero">
-          <Image
-            src={heroImage}
-            alt=""
-            fill
-            priority
-            sizes="(min-width: 900px) calc(100vw - 236px), 100vw"
-            className="hero-image"
-          />
-          <div className="hero-overlay" />
-          <div className="hero-content">
-            <h1>{"Fun\nFacts"}</h1>
-          </div>
-        </section>
-
-        <div className="app-shell">
-          <div className="main-column">
-            {loading && !insights ? (
+  const body = (
+    loading && !insights ? (
               <section className="panel">
                 <p className="muted">Crunching everyone&apos;s predictions…</p>
               </section>
@@ -668,8 +616,74 @@ export default function PredictionInsights({ tournament = defaultTournament }: P
                   change anything here, only the takes people committed to.
                 </p>
               </>
-            )}
+            )
+  );
+
+  if (embedded) {
+    return (
+      <div className="app-shell">
+        <div className="main-column">{body}</div>
+      </div>
+    );
+  }
+
+  return (
+    <main className="arena-layout">
+      <aside className="tournament-rail">
+        <div className="rail-brand">
+          <span className="rail-crest" aria-hidden="true">
+            <Image
+              src="/football-logo.png"
+              alt=""
+              width={52}
+              height={52}
+              loading="eager"
+              className="rail-logo-image"
+            />
+          </span>
+          <div className="rail-brand-copy">
+            <strong>{tournament.name}</strong>
+            <span>World Cup 2026</span>
           </div>
+        </div>
+        <nav className="tabs" aria-label="Main sections">
+          <a className="tab-link" href={gameHref}>
+            <ChevronLeft size={18} />
+            <span>Back to the game</span>
+          </a>
+          <a className="tab-link" href={goalsHref}>
+            <Medal size={18} />
+            <span>Goals & Assists</span>
+          </a>
+          <a className="tab-link active" href="#" aria-current="page" onClick={(event) => event.preventDefault()}>
+            <BarChart3 size={18} />
+            <span>Fun facts</span>
+          </a>
+        </nav>
+        <div className="rail-note">
+          <span>Built from</span>
+          <strong>{entriesLabel(submissions.length)} locked in</strong>
+        </div>
+      </aside>
+
+      <div className="arena-main">
+        <section className="hero">
+          <Image
+            src={heroImage}
+            alt=""
+            fill
+            priority
+            sizes="(min-width: 900px) calc(100vw - 236px), 100vw"
+            className="hero-image"
+          />
+          <div className="hero-overlay" />
+          <div className="hero-content">
+            <h1>{"Fun\nFacts"}</h1>
+          </div>
+        </section>
+
+        <div className="app-shell">
+          <div className="main-column">{body}</div>
         </div>
       </div>
     </main>

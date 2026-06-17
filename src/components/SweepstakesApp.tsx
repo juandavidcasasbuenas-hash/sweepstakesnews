@@ -18,8 +18,10 @@ import {
   Trophy,
 } from "lucide-react";
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import GoalsAssists from "@/components/GoalsAssists";
+import PredictionInsights from "@/components/PredictionInsights";
 import { fixtureKickoffDate } from "@/lib/fixture-time";
 import {
   avatarForName,
@@ -65,7 +67,7 @@ const blankResults: TournamentResults = {
 };
 const liveResultsPollMs = 60_000;
 
-type Tab = "predict" | "matchday" | "leaderboard" | "rules";
+type Tab = "predict" | "matchday" | "leaderboard" | "rules" | "titlerace" | "goals" | "insights";
 type EntryViewTab = "summary" | "groups" | "bracket";
 type PredictionStep = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "round32" | "round16" | "quarter" | "semi" | "thirdPlace" | "final";
 type ResultsPayload = {
@@ -1463,6 +1465,51 @@ function PlayerAvatar({
   );
 }
 
+function TitleRaceFrame({ src }: { src: string }) {
+  const ref = useRef<HTMLIFrameElement>(null);
+  const [height, setHeight] = useState(960);
+
+  const measure = useCallback(() => {
+    const doc = ref.current?.contentWindow?.document;
+    if (!doc) return;
+    const next = doc.documentElement.scrollHeight;
+    if (next > 0) setHeight((current) => (Math.abs(current - next) > 1 ? next : current));
+  }, []);
+
+  const handleLoad = useCallback(() => {
+    measure();
+    const frameWindow = ref.current?.contentWindow;
+    const doc = frameWindow?.document;
+    if (!doc || !frameWindow) return;
+    // The recap animates and fetches data after load, so its height keeps
+    // changing — track it live instead of guessing with fixed timeouts.
+    const observer = new ResizeObserver(() => measure());
+    observer.observe(doc.documentElement);
+    frameWindow.addEventListener("unload", () => observer.disconnect());
+  }, [measure]);
+
+  useEffect(() => {
+    const onResize = () => measure();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [measure]);
+
+  return (
+    <div className="app-shell">
+      <div className="main-column">
+        <iframe
+          ref={ref}
+          src={src}
+          title="The race for the title"
+          className="titlerace-frame"
+          style={{ height }}
+          onLoad={handleLoad}
+        />
+      </div>
+    </div>
+  );
+}
+
 function Leaderboard({
   submissions,
   results,
@@ -2460,6 +2507,9 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
     { key: "matchday", label: "Match days", icon: <CalendarDays size={18} /> },
     { key: "leaderboard", label: "Leaderboard", icon: <Trophy size={18} /> },
     { key: "rules", label: "Scoring", icon: <CheckCircle2 size={18} /> },
+    { key: "titlerace", label: "Title race", icon: <CarFront size={18} /> },
+    { key: "goals", label: "Goals & assists", icon: <Medal size={18} /> },
+    { key: "insights", label: "Fun facts", icon: <CircleQuestionMark size={18} /> },
   ];
 
   const heroData: Record<Tab, { h1: string }> = {
@@ -2475,8 +2525,20 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
     rules: {
       h1: "Scoring\nSystem",
     },
+    titlerace: {
+      h1: "Title\nRace",
+    },
+    goals: {
+      h1: "Goals\nAssists",
+    },
+    insights: {
+      h1: "Fun\nFacts",
+    },
   };
   const activeHero = heroData[tab];
+  const recapHref = isDefaultTournament
+    ? "/recap.html"
+    : `/recap.html?tournament=${encodeURIComponent(tournament.slug)}`;
 
   function moveStep(offset: number) {
     const next = Math.max(0, Math.min(predictionSteps.length - 1, activeStepIndex + offset));
@@ -2535,31 +2597,6 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
               <span>{item.label}</span>
             </button>
           ))}
-          <a
-            className="tab-link"
-            href={
-              isDefaultTournament
-                ? "/recap.html"
-                : `/recap.html?tournament=${encodeURIComponent(tournament.slug)}`
-            }
-          >
-            <CarFront size={18} />
-            <span>Title Race</span>
-          </a>
-          <a
-            className="tab-link"
-            href={isDefaultTournament ? "/goals-assists" : `/t/${tournament.slug}/goals-assists`}
-          >
-            <Medal size={18} />
-            <span>Goals & Assists</span>
-          </a>
-          <a
-            className="tab-link"
-            href={isDefaultTournament ? "/insights" : `/t/${tournament.slug}/insights`}
-          >
-            <CircleQuestionMark size={18} />
-            <span>Fun facts</span>
-          </a>
         </nav>
         <div className="rail-note">
           <span>Entries close</span>
@@ -2596,6 +2633,13 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
           </div>
         </section>
 
+        {tab === "titlerace" ? (
+          <TitleRaceFrame src={recapHref} />
+        ) : tab === "goals" ? (
+          <GoalsAssists embedded tournament={tournament} />
+        ) : tab === "insights" ? (
+          <PredictionInsights embedded tournament={tournament} />
+        ) : (
         <div className="app-shell">
           <div className="main-column">
 
@@ -2922,6 +2966,7 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
 
           </div>
         </div>
+        )}
       </div>
     </main>
   );

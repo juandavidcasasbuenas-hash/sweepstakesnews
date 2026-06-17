@@ -4655,6 +4655,15 @@ tr.third td:first-child {
   margin-top: 1rem;
 }
 
+.titlerace-frame {
+  display: block;
+  width: 100%;
+  min-height: 600px;
+  border: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
 .ga-table-panel {
   min-width: 0;
 }

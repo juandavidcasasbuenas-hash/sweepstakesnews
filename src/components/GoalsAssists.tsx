@@ -36,6 +36,7 @@ type GoalsAssistsPayload = {
 
 type GoalsAssistsProps = {
   tournament?: Tournament;
+  embedded?: boolean;
 };
 
 function TeamFlag({ team }: { team?: string }) {
@@ -45,7 +46,10 @@ function TeamFlag({ team }: { team?: string }) {
   ) : null;
 }
 
-export default function GoalsAssists({ tournament = defaultTournament }: GoalsAssistsProps) {
+export default function GoalsAssists({
+  tournament = defaultTournament,
+  embedded = false,
+}: GoalsAssistsProps) {
   const isDefaultTournament = tournament.slug === defaultTournament.slug;
   const gameHref = isDefaultTournament ? "/" : `/t/${tournament.slug}`;
   const insightsHref = isDefaultTournament ? "/insights" : `/t/${tournament.slug}/insights`;
@@ -93,6 +97,60 @@ export default function GoalsAssists({ tournament = defaultTournament }: GoalsAs
       )
       .slice(0, 10);
   }, [stats.assists, stats.scorers]);
+
+  const body = (
+    <>
+      {status ? <p className="export-notice">{status}</p> : null}
+      <section className="panel ga-table-panel">
+        <div className="section-title">
+          <span className="title-icon"><Trophy size={18} /></span>
+          <div>
+            <h2>Top 10 Goals & Assists</h2>
+          </div>
+        </div>
+        <table className="ga-table">
+          <thead>
+            <tr>
+              <th scope="col">Player</th>
+              <th scope="col">Goals</th>
+              <th scope="col">Assists</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length ? (
+              rows.map((row) => (
+                <tr key={`${row.player}-${row.team ?? "team"}`}>
+                  <td>
+                    <strong>{row.player}</strong>
+                    <small>
+                      <TeamFlag team={row.team} />
+                      {row.team ?? "Team TBC"}
+                    </small>
+                  </td>
+                  <td>{row.goals}</td>
+                  <td>{row.assists}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={3}>
+                  {loading ? "Loading goals and assists..." : "No completed match event data has been cached yet."}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </section>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="app-shell ga-shell">
+        <div className="main-column">{body}</div>
+      </div>
+    );
+  }
 
   return (
     <main className="arena-layout">
@@ -150,49 +208,7 @@ export default function GoalsAssists({ tournament = defaultTournament }: GoalsAs
         </section>
 
         <div className="app-shell ga-shell">
-          <div className="main-column">
-            {status ? <p className="export-notice">{status}</p> : null}
-            <section className="panel ga-table-panel">
-              <div className="section-title">
-                <span className="title-icon"><Trophy size={18} /></span>
-                <div>
-                  <h2>Top 10 Goals & Assists</h2>
-                </div>
-              </div>
-              <table className="ga-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Player</th>
-                    <th scope="col">Goals</th>
-                    <th scope="col">Assists</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.length ? (
-                    rows.map((row) => (
-                      <tr key={`${row.player}-${row.team ?? "team"}`}>
-                        <td>
-                          <strong>{row.player}</strong>
-                          <small>
-                            <TeamFlag team={row.team} />
-                            {row.team ?? "Team TBC"}
-                          </small>
-                        </td>
-                        <td>{row.goals}</td>
-                        <td>{row.assists}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={3}>
-                        {loading ? "Loading goals and assists..." : "No completed match event data has been cached yet."}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </section>
-          </div>
+          <div className="main-column">{body}</div>
         </div>
       </div>
     </main>
