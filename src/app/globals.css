@@ -2449,6 +2449,13 @@ tr.third td:first-child {
   border-bottom: 3px solid var(--fg);
 }
 
+.admin-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
 .admin-health-panel h2 {
   margin: 0.2rem 0 0;
   font-size: 2rem;
@@ -3978,6 +3985,15 @@ tr.third td:first-child {
   .admin-token-row > *,
   .admin-edit-name > div > *,
   .admin-detail-head > * {
+    width: 100%;
+  }
+
+  .admin-toolbar-actions {
+    flex-direction: column;
+    justify-content: stretch;
+  }
+
+  .admin-toolbar-actions > * {
     width: 100%;
   }
 
