@@ -1715,6 +1715,97 @@ tr.third td:first-child {
   font-style: italic;
 }
 
+.player-leaders-panel {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.player-leaders-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+}
+
+.player-leaders-table {
+  min-width: 560px;
+}
+
+.player-leaders-table th:first-child,
+.player-leaders-table td:first-child {
+  width: 48px;
+  text-align: center;
+}
+
+.player-leaders-table th:nth-child(4),
+.player-leaders-table th:nth-child(5),
+.player-leaders-table td:nth-child(4),
+.player-leaders-table td:nth-child(5) {
+  width: 84px;
+  text-align: center;
+}
+
+.player-leaders-table td {
+  height: 48px;
+  padding: 0.52rem 0.65rem;
+  background: var(--bg-card);
+}
+
+.player-leaders-table tbody tr:first-child td {
+  background: var(--bg-card-alt);
+}
+
+.player-leaders-table strong {
+  display: block;
+  overflow: hidden;
+  color: var(--fg);
+  font-size: 0.94rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-leaders-table td:nth-child(4) b {
+  display: inline-grid;
+  min-width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: var(--radius);
+  background: var(--red);
+  color: #ffffff;
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1rem;
+}
+
+.leader-rank {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--muted-strong);
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.leader-rank-1 {
+  background: var(--gold);
+  color: #ffffff;
+}
+
+.leader-rank-2 {
+  background: #2B2B2B;
+  color: #ffffff;
+}
+
+.leader-rank-3 {
+  background: #555555;
+  color: #ffffff;
+}
+
 .leaderboard-list {
   display: grid;
   gap: 0;
