@@ -53,6 +53,18 @@ type HealthPayload = {
   error?: string;
 };
 
+type RefreshGoalsAssistsPayload = {
+  warning?: string;
+  playerStats?: {
+    stats?: {
+      matchStats?: Record<string, unknown>;
+      scorers?: unknown[];
+      assists?: unknown[];
+    };
+  };
+  error?: string;
+};
+
 type AdminTab = "entries" | "results" | "health";
 
 type ResultDraft = {
@@ -193,6 +205,7 @@ export default function AdminDashboard() {
   const [resultsLoading, setResultsLoading] = useState(true);
   const [health, setHealth] = useState<HealthPayload | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
+  const [statsRefreshing, setStatsRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const filteredSubmissions = useMemo(() => {
@@ -337,6 +350,29 @@ export default function AdminDashboard() {
       setStatus(message);
     } finally {
       setHealthLoading(false);
+    }
+  }
+
+  async function refreshGoalsAssists() {
+    setStatsRefreshing(true);
+    setStatus("");
+    try {
+      const payload = (await adminFetch("/api/admin/refresh-goals-assists", {
+        method: "POST",
+      })) as RefreshGoalsAssistsPayload;
+      const statMatches = Object.keys(payload.playerStats?.stats?.matchStats ?? {}).length;
+      const playerRows =
+        (payload.playerStats?.stats?.scorers?.length ?? 0) +
+        (payload.playerStats?.stats?.assists?.length ?? 0);
+      const message =
+        payload.warning ??
+        `Goals & Assists refreshed. ${statMatches} match stat payload${statMatches === 1 ? "" : "s"} cached, ${playerRows} player row${playerRows === 1 ? "" : "s"} aggregated.`;
+      await loadHealth();
+      setStatus(message);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not refresh goals and assists");
+    } finally {
+      setStatsRefreshing(false);
     }
   }
 
@@ -1054,14 +1090,24 @@ export default function AdminDashboard() {
               <span className="eyebrow">System status</span>
               <h2>Admin health</h2>
             </div>
-            <button
-              className="secondary-button icon-button compact-btn"
-              onClick={() => void loadHealth()}
-              disabled={healthLoading}
-            >
-              <RefreshCw size={14} />
-              {healthLoading ? "Checking..." : "Run check"}
-            </button>
+            <div className="admin-toolbar-actions">
+              <button
+                className="primary-button icon-button compact-btn"
+                onClick={() => void refreshGoalsAssists()}
+                disabled={statsRefreshing || healthLoading}
+              >
+                <RefreshCw size={14} />
+                {statsRefreshing ? "Refreshing..." : "Refresh Goals & Assists"}
+              </button>
+              <button
+                className="secondary-button icon-button compact-btn"
+                onClick={() => void loadHealth()}
+                disabled={healthLoading || statsRefreshing}
+              >
+                <RefreshCw size={14} />
+                {healthLoading ? "Checking..." : "Run check"}
+              </button>
+            </div>
           </div>
 
           {status ? <p className="admin-status">{status}</p> : null}
