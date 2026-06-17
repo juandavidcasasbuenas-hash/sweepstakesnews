@@ -13,9 +13,11 @@ import {
   ImageDown,
   LockKeyhole,
   Medal,
+  Menu,
   Shuffle,
   Sparkles,
   Trophy,
+  X,
 } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -2213,6 +2215,7 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
   const brandName = tournament.name;
   const shareEnabled = !isDefaultTournament;
   const [tab, setTab] = useState<Tab>("matchday");
+  const [menuOpen, setMenuOpen] = useState(false);
   const [name, setName] = useState("");
   const [picks, setPicks] = useState<Record<number, MatchPick>>(createEmptyPicks);
   const [bonuses, setBonuses] = useState<BonusPicks>(emptyBonuses);
@@ -2539,6 +2542,7 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
   const recapHref = isDefaultTournament
     ? "/recap.html?embed=1"
     : `/recap.html?tournament=${encodeURIComponent(tournament.slug)}&embed=1`;
+  const activeNavLabel = navItems.find((item) => item.key === tab)?.label ?? "Menu";
 
   function moveStep(offset: number) {
     const next = Math.max(0, Math.min(predictionSteps.length - 1, activeStepIndex + offset));
@@ -2585,13 +2589,31 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
             <strong>{brandName}</strong>
             <span>World Cup 2026</span>
           </div>
+          <button
+            type="button"
+            className="rail-menu-toggle"
+            aria-label={menuOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={menuOpen}
+            aria-controls="rail-tabs"
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            {menuOpen ? <X size={20} /> : <Menu size={20} />}
+            <span className="rail-menu-label">{menuOpen ? "Close" : activeNavLabel}</span>
+          </button>
         </div>
-        <nav className="tabs" aria-label="Main sections">
+        <nav
+          id="rail-tabs"
+          className={`tabs${menuOpen ? " tabs-open" : ""}`}
+          aria-label="Main sections"
+        >
           {navItems.map((item) => (
             <button
               key={item.key}
               className={tab === item.key ? "active" : ""}
-              onClick={() => setTab(item.key)}
+              onClick={() => {
+                setTab(item.key);
+                setMenuOpen(false);
+              }}
             >
               {item.icon}
               <span>{item.label}</span>

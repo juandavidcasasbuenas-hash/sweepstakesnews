@@ -177,6 +177,35 @@ main {
   margin-top: 3px;
 }
 
+/* Hamburger toggle — hidden on desktop, shown when the rail collapses. */
+.rail-menu-toggle {
+  display: none;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: auto;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--rail-fg);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.rail-menu-toggle:hover {
+  background: rgba(200, 0, 30, 0.24);
+  border-color: var(--red-bright);
+}
+
+.rail-menu-label {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
 .rail-note {
   padding: 0.9rem 1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
@@ -4020,13 +4049,47 @@ tr.third td:first-child {
     font-size: 0.96rem;
   }
 
+  .rail-menu-toggle {
+    display: inline-flex;
+    padding: 0.5rem;
+  }
+
+  /* The hero already names the active section, so the toggle is icon-only. */
+  .rail-menu-label {
+    display: none;
+  }
+
+  /* Collapse the nav into a tap-to-open dropdown so every section is
+     discoverable instead of hidden in a horizontal scroller. */
   .tabs {
-    justify-content: flex-start;
+    display: none;
+    flex-direction: column;
+    width: 100%;
+    overflow: visible;
+    gap: 0;
+    background: var(--rail-bg);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .tabs.tabs-open {
+    display: flex;
   }
 
   .tabs button {
-    min-height: 42px;
-    padding: 0.58rem 0.75rem;
+    width: 100%;
+    justify-content: flex-start;
+    min-height: 50px;
+    font-size: 0.92rem;
+    padding: 0.7rem 0.95rem;
+    border-left: 3px solid transparent;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .tabs .active {
+    border-left-color: var(--red-bright);
+    border-bottom-color: rgba(255, 255, 255, 0.07);
+    background: rgba(200, 0, 30, 0.22);
+    color: var(--red-bright);
   }
 
   .hero {
