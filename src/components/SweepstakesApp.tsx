@@ -2548,6 +2548,17 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
           ))}
           <a
             className="tab-link"
+            href={
+              isDefaultTournament
+                ? "/recap.html"
+                : `/recap.html?tournament=${encodeURIComponent(tournament.slug)}`
+            }
+          >
+            <BarChart3 size={18} />
+            <span>Title Race</span>
+          </a>
+          <a
+            className="tab-link"
             href={isDefaultTournament ? "/insights" : `/t/${tournament.slug}/insights`}
           >
             <BarChart3 size={18} />
