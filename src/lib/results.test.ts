@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeGenericJson, normalizePlayerStatsFromMatchStats } from "@/lib/results";
+import { normalizeGenericJson } from "@/lib/results";
 
 const completedResults = [
   { id: 2, match_number: 1, home_team: "Mexico", away_team: "South Africa", home_score: 2, away_score: 0 },
@@ -98,64 +98,4 @@ test("rejects a numeric fallback when its fixture contradicts supplied teams", (
   ]);
 
   assert.deepEqual(results.matches, {});
-});
-
-test("aggregates goal scorers and assisters from match timelines", () => {
-  const playerStats = normalizePlayerStatsFromMatchStats([
-    {
-      timeline: [
-        {
-          type: "goal",
-          player: { name: "Marta Silva" },
-          assist: { name: "Ana Costa" },
-          team: { name: "Brazil" },
-        },
-        {
-          event_type: "penalty_scored",
-          scorer_name: "Marta Silva",
-          team_name: "Brazil",
-        },
-        {
-          type: "own_goal",
-          player_name: "Marta Silva",
-          team_name: "Brazil",
-        },
-      ],
-    },
-    {
-      events: [
-        {
-          type: "goal",
-          goal_scorer: "Alex Morgan",
-          assisted_by: "Ana Costa",
-          team: "USA",
-        },
-      ],
-    },
-  ]);
-
-  assert.deepEqual(playerStats, [
-    { player: "Marta Silva", team: "Brazil", goals: 2, assists: 0 },
-    { player: "Alex Morgan", team: "USA", goals: 1, assists: 0 },
-    { player: "Ana Costa", team: "Brazil", goals: 0, assists: 1 },
-    { player: "Ana Costa", team: "USA", goals: 0, assists: 1 },
-  ]);
-});
-
-test("aggregates numeric player stat rows", () => {
-  const playerStats = normalizePlayerStatsFromMatchStats([
-    {
-      data: {
-        goal_scorers: [
-          { player_name: "Sam Kerr", team_name: "Australia", goals: 3, assists: 1 },
-          { player_name: "Aitana Bonmati", team_name: "Spain", goals: 3, assists: 2 },
-        ],
-      },
-    },
-  ]);
-
-  assert.deepEqual(playerStats, [
-    { player: "Aitana Bonmati", team: "Spain", goals: 3, assists: 2 },
-    { player: "Sam Kerr", team: "Australia", goals: 3, assists: 1 },
-  ]);
 });

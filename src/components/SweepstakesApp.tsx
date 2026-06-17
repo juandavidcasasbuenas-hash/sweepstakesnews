@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  BarChart3,
   CalendarDays,
   CarFront,
   CheckCircle2,
@@ -43,7 +42,6 @@ import {
 import type {
   BonusPicks,
   MatchPick,
-  PlayerStatLine,
   ResolvedFixture,
   Submission,
   Tournament,
@@ -67,7 +65,7 @@ const blankResults: TournamentResults = {
 };
 const liveResultsPollMs = 60_000;
 
-type Tab = "predict" | "matchday" | "goalsAssists" | "leaderboard" | "rules";
+type Tab = "predict" | "matchday" | "leaderboard" | "rules";
 type EntryViewTab = "summary" | "groups" | "bracket";
 type PredictionStep = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "round32" | "round16" | "quarter" | "semi" | "thirdPlace" | "final";
 type ResultsPayload = {
@@ -1523,76 +1521,6 @@ function Leaderboard({
   );
 }
 
-function PlayerLeaders({
-  playerStats,
-  warning,
-}: {
-  playerStats?: PlayerStatLine[];
-  warning?: string;
-}) {
-  const rows = (playerStats ?? [])
-    .filter((row) => row.goals > 0 || row.assists > 0)
-    .sort(
-      (a, b) =>
-        b.goals - a.goals ||
-        b.assists - a.assists ||
-        a.player.localeCompare(b.player) ||
-        (a.team ?? "").localeCompare(b.team ?? ""),
-    )
-    .slice(0, 12);
-
-  return (
-    <section className="panel player-leaders-panel">
-      <div className="section-title">
-        <span className="title-icon"><BarChart3 size={18} /></span>
-        <div>
-          <span className="eyebrow">Tournament leaders</span>
-          <h2>Goals & Assists</h2>
-        </div>
-      </div>
-
-      {rows.length === 0 ? (
-        <p className="muted">
-          Player leaders will appear once completed match stats are available.
-        </p>
-      ) : (
-        <div className="player-leaders-table-wrap">
-          <table className="player-leaders-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Player</th>
-                <th>Team</th>
-                <th>Goals</th>
-                <th>Assists</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, index) => (
-                <tr key={`${row.player}-${row.team ?? "team"}-${index}`}>
-                  <td>
-                    <span className={`leader-rank ${index < 3 ? `leader-rank-${index + 1}` : ""}`}>
-                      {index + 1}
-                    </span>
-                  </td>
-                  <td>
-                    <strong>{row.player}</strong>
-                  </td>
-                  <td>{row.team ? <TeamLabelAbbr team={row.team} /> : "TBC"}</td>
-                  <td><b>{row.goals}</b></td>
-                  <td>{row.assists}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {warning ? <p className="mini-note">{warning}</p> : null}
-    </section>
-  );
-}
-
 function MatchDayView({
   fixtures,
   submissions,
@@ -2383,7 +2311,7 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
   ]);
 
   useEffect(() => {
-    if (!hydrated || (tab !== "leaderboard" && tab !== "matchday" && tab !== "goalsAssists")) return;
+    if (!hydrated || (tab !== "leaderboard" && tab !== "matchday")) return;
     const firstRun = window.setTimeout(() => {
       void loadLiveResults();
     }, 0);
@@ -2542,7 +2470,6 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
       ? [{ key: "predict" as const, label: "Predict matches", icon: <Sparkles size={18} /> }]
       : []),
     { key: "matchday", label: "Match days", icon: <CalendarDays size={18} /> },
-    { key: "goalsAssists", label: "Goals & Assists", icon: <BarChart3 size={18} /> },
     { key: "leaderboard", label: "Leaderboard", icon: <Trophy size={18} /> },
     { key: "rules", label: "Scoring", icon: <CheckCircle2 size={18} /> },
   ];
@@ -2553,9 +2480,6 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
     },
     leaderboard: {
       h1: "The\nTable",
-    },
-    goalsAssists: {
-      h1: "Goals &\nAssists",
     },
     matchday: {
       h1: "Match\nDays",
@@ -2952,20 +2876,6 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
                   onViewTabChange={setEntryViewTab}
                   onExport={exportSubmission}
                   results={results}
-                />
-              </div>
-            )}
-
-            {tab === "goalsAssists" && (
-              <div key="goals-assists-panel" style={{ display: "grid", gap: "1.4rem" }}>
-                {resultsStatus ? (
-                  <p className="export-notice">
-                    {resultsSyncing ? "Refreshing live results..." : resultsStatus}
-                  </p>
-                ) : null}
-                <PlayerLeaders
-                  playerStats={results.playerStats}
-                  warning={results.playerStatsWarning}
                 />
               </div>
             )}

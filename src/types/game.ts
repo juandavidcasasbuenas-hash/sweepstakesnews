@@ -72,13 +72,6 @@ export type ResultMatch = {
   sandbox?: boolean;
 };
 
-export type PlayerStatLine = {
-  player: string;
-  team?: string;
-  goals: number;
-  assists: number;
-};
-
 export type TournamentResults = {
   matches: Record<number, ResultMatch>;
   bonuses: BonusPicks;
@@ -87,9 +80,6 @@ export type TournamentResults = {
   providerWarning?: string;
   manualOverride?: boolean;
   providerCalls?: { date: string; count: number };
-  playerStats?: PlayerStatLine[];
-  playerStatsUpdatedAt?: string;
-  playerStatsWarning?: string;
 };
 
 export type TeamStanding = {
