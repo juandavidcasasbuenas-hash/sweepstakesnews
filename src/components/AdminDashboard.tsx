@@ -44,6 +44,10 @@ type HealthPayload = {
     resultsUpdatedAt: string;
     manualOverride: boolean;
     providerWarning: string;
+    playerStatsMatchCount?: number;
+    playerStatsUpdatedAt?: string;
+    playerStatsWarning?: string;
+    playerStatsBudget?: { cap: number; count: number; exhausted: boolean } | null;
   };
   error?: string;
 };
@@ -1075,6 +1079,10 @@ export default function AdminDashboard() {
                 <article>
                   <span>Results</span>
                   <strong>{health.data?.resultCount ?? "—"}</strong>
+                </article>
+                <article>
+                  <span>Stat cache</span>
+                  <strong>{health.data?.playerStatsMatchCount ?? "—"}</strong>
                 </article>
                 <article>
                   <span>Override</span>

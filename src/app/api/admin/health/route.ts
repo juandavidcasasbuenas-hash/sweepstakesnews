@@ -6,6 +6,10 @@ import {
   resultsPollTier,
   resultsPollTtlSeconds,
 } from "@/lib/results";
+import {
+  playerStatsFromResults,
+  playerStatsProviderBudget,
+} from "@/lib/player-stats";
 
 type HealthCheck = {
   label: string;
@@ -107,13 +111,22 @@ export async function GET(request: Request) {
   let manualOverride = false;
   let providerWarning = "";
   let providerBudget: { cap: number; count: number; exhausted: boolean } | null = null;
+  let playerStatsMatchCount = 0;
+  let playerStatsUpdatedAt = "";
+  let playerStatsWarning = "";
+  let playerStatsBudget: { cap: number; count: number; exhausted: boolean } | null = null;
   try {
     const stored = await readStoredResults();
+    const playerStats = playerStatsFromResults(stored.results);
     resultCount = Object.keys(stored.results.matches ?? {}).length;
     resultsUpdatedAt = stored.results.updatedAt;
     manualOverride = Boolean(stored.results.manualOverride);
     providerWarning = stored.results.providerWarning ?? "";
     providerBudget = providerCallBudget(stored.results);
+    playerStatsMatchCount = Object.keys(playerStats.matchStats ?? {}).length;
+    playerStatsUpdatedAt = playerStats.updatedAt;
+    playerStatsWarning = playerStats.providerWarning ?? "";
+    playerStatsBudget = playerStatsProviderBudget(playerStats);
     checks.push(
       check(
         "Provider call budget",
@@ -128,6 +141,28 @@ export async function GET(request: Request) {
         "Results read",
         "ok",
         `${resultCount} saved result${resultCount === 1 ? "" : "s"} loaded in ${stored.mode} mode.`,
+      ),
+    );
+    checks.push(
+      check(
+        "Goals and assists cache",
+        playerStatsMatchCount > 0 ? "ok" : "warn",
+        `${playerStatsMatchCount} completed match stat payload${
+          playerStatsMatchCount === 1 ? "" : "s"
+        } cached. ${playerStats.scorers.length} scorer row${
+          playerStats.scorers.length === 1 ? "" : "s"
+        }, ${playerStats.assists.length} assist row${
+          playerStats.assists.length === 1 ? "" : "s"
+        } aggregated.`,
+      ),
+    );
+    checks.push(
+      check(
+        "Goals and assists budget",
+        playerStatsBudget.exhausted ? "warn" : "ok",
+        `${playerStatsBudget.count} of ${playerStatsBudget.cap} daily player-stat calls used${
+          playerStatsBudget.exhausted ? "; refresh paused until midnight UTC" : ""
+        }.`,
       ),
     );
     checks.push(
@@ -169,6 +204,10 @@ export async function GET(request: Request) {
       resultsUpdatedAt,
       manualOverride,
       providerWarning,
+      playerStatsMatchCount,
+      playerStatsUpdatedAt,
+      playerStatsWarning,
+      playerStatsBudget,
       pollTier,
       pollTtlSeconds,
       providerBudget,

@@ -1,17 +1,18 @@
 "use client";
 
 import {
-  BarChart3,
   CalendarDays,
+  CarFront,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  CircleQuestionMark,
   ClipboardCheck,
   Download,
   Eye,
   ImageDown,
   LockKeyhole,
-  RefreshCw,
+  Medal,
   Shuffle,
   Sparkles,
   Trophy,
@@ -41,7 +42,6 @@ import {
 import type {
   BonusPicks,
   MatchPick,
-  PlayerStatLine,
   ResolvedFixture,
   Submission,
   Tournament,
@@ -1521,84 +1521,12 @@ function Leaderboard({
   );
 }
 
-function PlayerLeaders({
-  playerStats,
-  warning,
-}: {
-  playerStats?: PlayerStatLine[];
-  warning?: string;
-}) {
-  const rows = (playerStats ?? [])
-    .filter((row) => row.goals > 0 || row.assists > 0)
-    .sort(
-      (a, b) =>
-        b.goals - a.goals ||
-        b.assists - a.assists ||
-        a.player.localeCompare(b.player) ||
-        (a.team ?? "").localeCompare(b.team ?? ""),
-    )
-    .slice(0, 12);
-
-  return (
-    <section className="panel player-leaders-panel">
-      <div className="section-title">
-        <span className="title-icon"><BarChart3 size={18} /></span>
-        <div>
-          <span className="eyebrow">Tournament leaders</span>
-          <h2>Goals & assists</h2>
-        </div>
-      </div>
-
-      {rows.length === 0 ? (
-        <p className="muted">
-          Player leaders will appear once completed match stats are available.
-        </p>
-      ) : (
-        <div className="player-leaders-table-wrap">
-          <table className="player-leaders-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Player</th>
-                <th>Team</th>
-                <th>Goals</th>
-                <th>Assists</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, index) => (
-                <tr key={`${row.player}-${row.team ?? "team"}-${index}`}>
-                  <td>
-                    <span className={`leader-rank ${index < 3 ? `leader-rank-${index + 1}` : ""}`}>
-                      {index + 1}
-                    </span>
-                  </td>
-                  <td>
-                    <strong>{row.player}</strong>
-                  </td>
-                  <td>{row.team ? <TeamLabelAbbr team={row.team} /> : "TBC"}</td>
-                  <td><b>{row.goals}</b></td>
-                  <td>{row.assists}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {warning ? <p className="mini-note">{warning}</p> : null}
-    </section>
-  );
-}
-
 function MatchDayView({
   fixtures,
   submissions,
   results,
   selectedDate,
   onDateChange,
-  onCheckResults,
-  resultsSyncing,
   ownSubmissionId,
 }: {
   fixtures: ResolvedFixture[];
@@ -1606,8 +1534,6 @@ function MatchDayView({
   results: TournamentResults;
   selectedDate: string;
   onDateChange: (date: string) => void;
-  onCheckResults: () => void;
-  resultsSyncing: boolean;
   ownSubmissionId?: string | null;
 }) {
   const resultsResolved = useMemo(
@@ -1642,14 +1568,6 @@ function MatchDayView({
           <div>
             <span className="eyebrow">Match day view</span>
             <h2>Predictions by fixture</h2>
-            <button
-              className="secondary-button icon-button compact-btn matchday-check-button"
-              onClick={onCheckResults}
-              disabled={resultsSyncing}
-            >
-              <RefreshCw size={14} />
-              {resultsSyncing ? "Checking..." : "Check for results"}
-            </button>
           </div>
         </div>
       </div>
@@ -2619,9 +2537,27 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
           ))}
           <a
             className="tab-link"
+            href={
+              isDefaultTournament
+                ? "/recap.html"
+                : `/recap.html?tournament=${encodeURIComponent(tournament.slug)}`
+            }
+          >
+            <CarFront size={18} />
+            <span>Title Race</span>
+          </a>
+          <a
+            className="tab-link"
+            href={isDefaultTournament ? "/goals-assists" : `/t/${tournament.slug}/goals-assists`}
+          >
+            <Medal size={18} />
+            <span>Goals & Assists</span>
+          </a>
+          <a
+            className="tab-link"
             href={isDefaultTournament ? "/insights" : `/t/${tournament.slug}/insights`}
           >
-            <BarChart3 size={18} />
+            <CircleQuestionMark size={18} />
             <span>Fun facts</span>
           </a>
         </nav>
@@ -2867,8 +2803,6 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
                   results={results}
                   selectedDate={selectedMatchDate}
                   onDateChange={setSelectedMatchDate}
-                  onCheckResults={() => void loadLiveResults("force")}
-                  resultsSyncing={resultsSyncing}
                   ownSubmissionId={ownSubmission?.id ?? submittedEntryId}
                 />
               </div>
@@ -2903,20 +2837,12 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
                     <ImageDown size={14} />
                     Export PNG
                   </button>
-                  <button className="secondary-button icon-button compact-btn" onClick={() => loadLiveResults("force")}>
-                    <RefreshCw size={14} />
-                    Check for results
-                  </button>
                 </div>
                 {resultsStatus ? (
                   <p className="export-notice">
                     {resultsSyncing ? "Refreshing live results..." : resultsStatus}
                   </p>
                 ) : null}
-                <PlayerLeaders
-                  playerStats={results.playerStats}
-                  warning={results.playerStatsWarning}
-                />
                 {exportNotice ? <p className="export-notice">{exportNotice}</p> : null}
                 <Leaderboard
                   submissions={submissions}

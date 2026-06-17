@@ -17,6 +17,9 @@ const oswald = Oswald({
 export const metadata: Metadata = {
   title: "Sweepstakes News",
   description: "World Cup 2026 prediction game and live standings.",
+  icons: {
+    icon: "/football-logo.png",
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

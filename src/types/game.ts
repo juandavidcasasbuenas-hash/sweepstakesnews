@@ -72,13 +72,6 @@ export type ResultMatch = {
   sandbox?: boolean;
 };
 
-export type PlayerStatLine = {
-  player: string;
-  team?: string;
-  goals: number;
-  assists: number;
-};
-
 export type TournamentResults = {
   matches: Record<number, ResultMatch>;
   bonuses: BonusPicks;
@@ -87,9 +80,45 @@ export type TournamentResults = {
   providerWarning?: string;
   manualOverride?: boolean;
   providerCalls?: { date: string; count: number };
-  playerStats?: PlayerStatLine[];
-  playerStatsUpdatedAt?: string;
-  playerStatsWarning?: string;
+  playerStats?: PlayerStatsState;
+};
+
+export type GoalAssistEvent = {
+  fixtureId: number;
+  providerId?: number;
+  minute?: number | null;
+  team?: string;
+  scorer: string;
+  assist?: string;
+  penalty?: boolean;
+  ownGoal?: boolean;
+};
+
+export type StoredMatchPlayerStats = {
+  fixtureId: number;
+  providerId?: number;
+  checkedAt: string;
+  events: GoalAssistEvent[];
+  warning?: string;
+};
+
+export type PlayerGoalAssistRow = {
+  player: string;
+  team?: string;
+  goals: number;
+  assists: number;
+  penaltyGoals: number;
+  matches: number[];
+};
+
+export type PlayerStatsState = {
+  scorers: PlayerGoalAssistRow[];
+  assists: PlayerGoalAssistRow[];
+  matchStats: Record<number, StoredMatchPlayerStats>;
+  updatedAt: string;
+  providerCheckedAt?: string;
+  providerWarning?: string;
+  providerCalls?: { date: string; count: number };
 };
 
 export type TeamStanding = {

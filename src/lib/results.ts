@@ -8,7 +8,7 @@ import {
   sampleResults,
 } from "@/lib/tournament";
 import { getSupabase } from "@/lib/supabase";
-import type { Fixture, PlayerStatLine, ResultMatch, TournamentResults } from "@/types/game";
+import type { Fixture, ResultMatch, TournamentResults } from "@/types/game";
 
 export const resultsRowId = "world-cup-2026";
 
@@ -81,19 +81,6 @@ function firstString(...values: unknown[]) {
     if (typeof value === "string" && value.trim()) return value.trim();
   }
   return undefined;
-}
-
-function namedString(value: unknown) {
-  if (typeof value === "string") return firstString(value);
-  const source = asRecord(value);
-  return firstString(
-    source.name,
-    source.player,
-    source.player_name,
-    source.full_name,
-    source.display_name,
-    source.short_name,
-  );
 }
 
 function firstBoolean(...values: unknown[]) {
@@ -340,151 +327,6 @@ function rowsFromPayload(payload: unknown) {
   return [];
 }
 
-function findArrayByKey(payload: unknown, keys: string[]): unknown[] | undefined {
-  if (!payload || typeof payload !== "object") return undefined;
-  if (Array.isArray(payload)) return payload;
-
-  const source = payload as Record<string, unknown>;
-  for (const key of keys) {
-    const value = source[key];
-    if (Array.isArray(value)) return value;
-  }
-
-  for (const value of Object.values(source)) {
-    const nestedArray = findArrayByKey(value, keys);
-    if (nestedArray) return nestedArray;
-  }
-
-  return undefined;
-}
-
-function eventKind(row: Record<string, unknown>) {
-  return firstString(
-    row.type,
-    row.event,
-    row.event_type,
-    row.kind,
-    row.category,
-    row.detail,
-    row.action,
-  )?.toLowerCase();
-}
-
-function statPlayer(row: Record<string, unknown>) {
-  return namedString(row.player) ?? namedString(row.player_name) ?? namedString(row.scorer);
-}
-
-function statAssister(row: Record<string, unknown>) {
-  return (
-    namedString(row.assist) ??
-    namedString(row.assister) ??
-    namedString(row.assist_player) ??
-    namedString(row.assistPlayer) ??
-    namedString(row.assisted_by) ??
-    namedString(row.assistedBy)
-  );
-}
-
-function statTeam(row: Record<string, unknown>) {
-  return (
-    namedString(row.team) ??
-    namedString(row.team_name) ??
-    namedString(row.teamName) ??
-    firstString(row.team_code, row.teamCode)
-  );
-}
-
-function incrementPlayerStat(
-  totals: Map<string, PlayerStatLine>,
-  player: string | undefined,
-  team: string | undefined,
-  field: "goals" | "assists",
-) {
-  if (!player) return;
-  const key = `${player.trim().toLowerCase()}|${team?.trim().toLowerCase() ?? ""}`;
-  const current = totals.get(key) ?? {
-    player,
-    team,
-    goals: 0,
-    assists: 0,
-  };
-  current[field] += 1;
-  if (!current.team && team) current.team = team;
-  totals.set(key, current);
-}
-
-export function normalizePlayerStatsFromMatchStats(payloads: unknown[]): PlayerStatLine[] {
-  const totals = new Map<string, PlayerStatLine>();
-
-  payloads.forEach((payload) => {
-    const rows =
-      findArrayByKey(payload, [
-        "timeline",
-        "events",
-        "match_events",
-        "matchEvents",
-        "goals",
-        "scorers",
-        "goal_scorers",
-        "goalScorers",
-      ]) ??
-      rowsFromPayload(payload);
-
-    rows.forEach((row) => {
-      const source = asRecord(row);
-      const kind = eventKind(source) ?? "";
-      const isOwnGoal = kind.includes("own") && kind.includes("goal");
-      const isGoal =
-        !isOwnGoal &&
-        (kind === "goal" ||
-          kind.includes(" goal") ||
-          kind.includes("_goal") ||
-          kind.endsWith("goal") ||
-          kind.includes("goal_") ||
-          kind.includes("penalty_scored") ||
-          kind.includes("scored"));
-      const isAssist = kind === "assist" || kind.includes("assist");
-      const team = statTeam(source);
-      const directGoals = firstNumber(source.goals, source.goal_count, source.goalCount);
-      const directAssists = firstNumber(source.assists, source.assist_count, source.assistCount);
-      const directPlayer = statPlayer(source);
-
-      if (typeof directGoals === "number" || typeof directAssists === "number") {
-        for (let i = 0; i < (directGoals ?? 0); i += 1) {
-          incrementPlayerStat(totals, directPlayer, team, "goals");
-        }
-        for (let i = 0; i < (directAssists ?? 0); i += 1) {
-          incrementPlayerStat(totals, directPlayer, team, "assists");
-        }
-        return;
-      }
-
-      if (isGoal) {
-        incrementPlayerStat(
-          totals,
-          directPlayer ??
-            namedString(source.scorer_name) ??
-            namedString(source.goal_scorer) ??
-            namedString(source.goalScorer),
-          team,
-          "goals",
-        );
-        incrementPlayerStat(totals, statAssister(source), team, "assists");
-      } else if (isAssist) {
-        incrementPlayerStat(totals, statAssister(source) ?? statPlayer(source), team, "assists");
-      }
-    });
-  });
-
-  return [...totals.values()].sort(
-    (a, b) =>
-      b.goals - a.goals ||
-      b.assists - a.assists ||
-      a.player.localeCompare(b.player) ||
-      (a.team ?? "").localeCompare(b.team ?? ""),
-  );
-}
-
 export function normalizeGenericJson(
   payload: unknown,
   options: NormalizeOptions = {},
@@ -540,7 +382,19 @@ export function normalizeApiFootball(payload: unknown): TournamentResults {
 
 async function fetchJson(url: string, init?: RequestInit) {
   const response = await fetch(url, { ...init, cache: "no-store" });
-  if (!response.ok) throw new Error(`${url} returned ${response.status}`);
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    let detail = body.trim();
+    try {
+      const parsed = JSON.parse(body) as { error?: unknown; message?: unknown };
+      detail = firstString(parsed.error, parsed.message) ?? detail;
+    } catch {
+      // Some providers return plain text or empty error bodies.
+    }
+    throw new Error(
+      `${url} returned ${response.status}${detail ? `: ${detail.slice(0, 240)}` : ""}`,
+    );
+  }
   return response.json();
 }
 
@@ -614,44 +468,11 @@ export async function fetchWc2026TestMatch() {
 
 async function fetchWc2026Matches() {
   const endpoint = process.env.WC2026_API_URL ?? `${WC2026_API_BASE}/matches?status=completed`;
-  const results = normalizeGenericJson(
+  return normalizeGenericJson(
     await fetchJson(endpoint, {
       headers: wc2026Headers(),
     }),
   );
-
-  return withWc2026PlayerStats(results);
-}
-
-async function withWc2026PlayerStats(results: TournamentResults) {
-  const completed = Object.values(results.matches).filter((match) => {
-    const providerId = match.providerId ?? match.fixtureId;
-    return providerId && match.status !== "scheduled" && !match.sandbox;
-  });
-
-  if (completed.length === 0) return results;
-
-  const settled = await Promise.allSettled(
-    completed.map((match) =>
-      fetchJson(`${WC2026_API_BASE}/matches/${match.providerId ?? match.fixtureId}/stats`, {
-        headers: wc2026Headers(),
-      }),
-    ),
-  );
-  const payloads = settled
-    .filter((item): item is PromiseFulfilledResult<unknown> => item.status === "fulfilled")
-    .map((item) => item.value);
-  const failedCount = settled.length - payloads.length;
-  const playerStats = normalizePlayerStatsFromMatchStats(payloads);
-
-  return {
-    ...results,
-    playerStats,
-    playerStatsUpdatedAt: new Date().toISOString(),
-    ...(failedCount
-      ? { playerStatsWarning: `${failedCount} match stat call${failedCount === 1 ? "" : "s"} failed` }
-      : {}),
-  };
 }
 
 async function fetchWc2026TestResults() {
@@ -795,7 +616,11 @@ export async function refreshStoredResults(request: Request): Promise<ResultsWri
     const cached = await cacheProviderWarning(stored, warning, providerCalls);
     return { ...cached, warning };
   }
-  return writeStoredResults({ ...results, providerCalls });
+  return writeStoredResults({
+    ...results,
+    playerStats: stored.results.playerStats,
+    providerCalls,
+  });
 }
 
 function hasResults(results: TournamentResults) {
