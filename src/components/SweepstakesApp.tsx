@@ -2725,7 +2725,7 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
         {tab === "titlerace" ? (
           <TitleRaceFrame src={recapHref} />
         ) : tab === "goals" ? (
-          <GoalsAssists embedded tournament={tournament} />
+          <GoalsAssists embedded tournament={tournament} submissions={submissions} />
         ) : tab === "insights" ? (
           <PredictionInsights embedded tournament={tournament} />
         ) : (

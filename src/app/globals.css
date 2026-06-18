@@ -4835,6 +4835,37 @@ tr.third td:first-child {
   line-height: 1;
 }
 
+/* Who predicted this player as top scorer */
+.ga-predictors {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.2rem;
+}
+
+.ga-predictors-label {
+  color: var(--gold);
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ga-pred-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.08rem 0.42rem;
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  background: var(--gold-light);
+  color: var(--gold);
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 /* Metric strip */
 .ins-metrics {
   display: grid;

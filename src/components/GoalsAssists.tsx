@@ -8,8 +8,22 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
+import { matchPlayerName } from "@/lib/player-names";
 import { flagUrlFor } from "@/lib/team-flags";
-import type { PlayerGoalAssistRow, PlayerStatsState, Tournament } from "@/types/game";
+import type { PlayerGoalAssistRow, PlayerStatsState, Submission, Tournament } from "@/types/game";
+
+const localSubmissionsKey = "sweepstakes-news-submissions";
+
+function readLocal<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  const raw = window.localStorage.getItem(key);
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
 
 const emptyStatsDate = new Date(0).toISOString();
 const emptyPlayerStats: PlayerStatsState = {
@@ -34,9 +48,15 @@ type GoalsAssistsPayload = {
   error?: string;
 };
 
+type SubmissionsPayload = {
+  mode?: string;
+  submissions?: Submission[];
+};
+
 type GoalsAssistsProps = {
   tournament?: Tournament;
   embedded?: boolean;
+  submissions?: Submission[];
 };
 
 function TeamFlag({ team }: { team?: string }) {
@@ -49,15 +69,26 @@ function TeamFlag({ team }: { team?: string }) {
 export default function GoalsAssists({
   tournament = defaultTournament,
   embedded = false,
+  submissions: submissionsProp,
 }: GoalsAssistsProps) {
   const isDefaultTournament = tournament.slug === defaultTournament.slug;
   const gameHref = isDefaultTournament ? "/" : `/t/${tournament.slug}`;
   const insightsHref = isDefaultTournament ? "/insights" : `/t/${tournament.slug}/insights`;
   const goalsHref = isDefaultTournament ? "/goals-assists" : `/t/${tournament.slug}/goals-assists`;
   const heroImage = isDefaultTournament ? "/hero-banner-site.jpg" : "/tournament-generic-banner.png";
+  const submissionsUrl = isDefaultTournament
+    ? "/api/submissions"
+    : `/api/submissions?tournament=${encodeURIComponent(tournament.slug)}`;
+  const scopedSubmissionsKey = isDefaultTournament
+    ? localSubmissionsKey
+    : `${localSubmissionsKey}:${tournament.slug}`;
   const [stats, setStats] = useState<PlayerStatsState>(emptyPlayerStats);
+  const [fetchedSubmissions, setFetchedSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
+
+  // When embedded the parent already has submissions; standalone fetches its own.
+  const submissions = submissionsProp ?? fetchedSubmissions;
 
   useEffect(() => {
     let cancelled = false;
@@ -80,6 +111,48 @@ export default function GoalsAssists({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (submissionsProp) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setFetchedSubmissions((current) =>
+        current.length ? current : readLocal<Submission[]>(scopedSubmissionsKey, []),
+      );
+    });
+    fetch(submissionsUrl)
+      .then((response) => response.json())
+      .then((payload: SubmissionsPayload) => {
+        if (cancelled) return;
+        if (Array.isArray(payload.submissions) && payload.submissions.length) {
+          setFetchedSubmissions(payload.submissions);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [scopedSubmissionsKey, submissionsProp, submissionsUrl]);
+
+  // Map each leading scorer to the people who predicted them as top scorer,
+  // matching hand-typed names against the validated scorer list.
+  const topScorerPredictors = useMemo(() => {
+    const map = new Map<string, string[]>();
+    if (!submissions.length || !stats.scorers.length) return map;
+    const candidateNames = stats.scorers.map((row) => row.player);
+    submissions.forEach((submission) => {
+      const pick = submission.bonuses?.topScorer?.trim();
+      if (!pick) return;
+      const canonical = matchPlayerName(pick, candidateNames);
+      if (!canonical) return;
+      const key = canonical.toLowerCase();
+      const backers = map.get(key) ?? [];
+      if (!backers.includes(submission.name)) backers.push(submission.name);
+      map.set(key, backers);
+    });
+    return map;
+  }, [stats.scorers, submissions]);
 
   const rows = useMemo(() => {
     const merged = new Map<string, PlayerGoalAssistRow>();
@@ -118,19 +191,30 @@ export default function GoalsAssists({
           </thead>
           <tbody>
             {rows.length ? (
-              rows.map((row) => (
-                <tr key={`${row.player}-${row.team ?? "team"}`}>
-                  <td>
-                    <strong>{row.player}</strong>
-                    <small>
-                      <TeamFlag team={row.team} />
-                      {row.team ?? "Team TBC"}
-                    </small>
-                  </td>
-                  <td>{row.goals}</td>
-                  <td>{row.assists}</td>
-                </tr>
-              ))
+              rows.map((row) => {
+                const predictors = topScorerPredictors.get(row.player.toLowerCase()) ?? [];
+                return (
+                  <tr key={`${row.player}-${row.team ?? "team"}`}>
+                    <td>
+                      <strong>{row.player}</strong>
+                      <small>
+                        <TeamFlag team={row.team} />
+                        {row.team ?? "Team TBC"}
+                      </small>
+                      {predictors.length ? (
+                        <span className="ga-predictors" title="Picked as top scorer by">
+                          <span className="ga-predictors-label">Top-scorer pick</span>
+                          {predictors.map((name) => (
+                            <span key={name} className="ga-pred-pill">{name}</span>
+                          ))}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td>{row.goals}</td>
+                    <td>{row.assists}</td>
+                  </tr>
+                );
+              })
             ) : (
               <tr>
                 <td colSpan={3}>

@@ -1,3 +1,4 @@
+import { canonicalizePlayerName } from "@/lib/player-names";
 import { groupFixtures, resolveFixtures } from "@/lib/tournament";
 import type { MatchPick, ResolvedFixture, Submission } from "@/types/game";
 
@@ -187,7 +188,10 @@ function tallyLabels(picks: Array<{ label: string; backer: string }>): LabelCoun
   );
 }
 
-export function buildPoolInsights(submissions: Submission[]): PoolInsights {
+export function buildPoolInsights(
+  submissions: Submission[],
+  playerNames: string[] = [],
+): PoolInsights {
   const subs = [...submissions].sort((a, b) => a.name.localeCompare(b.name));
   const resolvedById = new Map(subs.map((sub) => [sub.id, resolveFixtures(sub.picks)]));
   const entries = subs.map((sub) => buildEntryInsight(sub, resolvedById.get(sub.id)!));
@@ -350,10 +354,16 @@ export function buildPoolInsights(submissions: Submission[]): PoolInsights {
     twins,
     opposites,
     bonusTopScorers: tallyLabels(
-      subs.map((sub) => ({ label: sub.bonuses?.topScorer ?? "", backer: sub.name })),
+      subs.map((sub) => ({
+        label: canonicalizePlayerName(sub.bonuses?.topScorer ?? "", playerNames),
+        backer: sub.name,
+      })),
     ),
     bonusGoldenBalls: tallyLabels(
-      subs.map((sub) => ({ label: sub.bonuses?.goldenBall ?? "", backer: sub.name })),
+      subs.map((sub) => ({
+        label: canonicalizePlayerName(sub.bonuses?.goldenBall ?? "", playerNames),
+        backer: sub.name,
+      })),
     ),
     bonusMostGoalsTeams: tallyLabels(
       subs.map((sub) => ({ label: sub.bonuses?.mostGoalsTeam ?? "", backer: sub.name })),

@@ -218,7 +218,26 @@ export default function PredictionInsights({
   const goalsHref = isDefaultTournament ? "/goals-assists" : `/t/${tournament.slug}/goals-assists`;
 
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [playerNames, setPlayerNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/goals-assists", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((payload: { stats?: { scorers?: Array<{ player: string }>; assists?: Array<{ player: string }> } }) => {
+        if (cancelled) return;
+        const names = [
+          ...(payload.stats?.scorers ?? []),
+          ...(payload.stats?.assists ?? []),
+        ].map((row) => row.player);
+        setPlayerNames(Array.from(new Set(names)));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -257,8 +276,8 @@ export default function PredictionInsights({
   }, [scopedSubmissionsKey, submissionsUrl]);
 
   const insights: PoolInsights | null = useMemo(
-    () => (submissions.length ? buildPoolInsights(submissions) : null),
-    [submissions],
+    () => (submissions.length ? buildPoolInsights(submissions, playerNames) : null),
+    [submissions, playerNames],
   );
 
   const goalRanking = useMemo(
