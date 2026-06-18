@@ -10,7 +10,13 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { matchPlayerName } from "@/lib/player-names";
 import { flagUrlFor } from "@/lib/team-flags";
-import type { PlayerGoalAssistRow, PlayerStatsState, Submission, Tournament } from "@/types/game";
+import type {
+  PlayerGoalAssistRow,
+  PlayerStatsState,
+  Submission,
+  Tournament,
+  TournamentResults,
+} from "@/types/game";
 
 const localSubmissionsKey = "sweepstakes-news-submissions";
 
@@ -53,6 +59,10 @@ type SubmissionsPayload = {
   submissions?: Submission[];
 };
 
+type ResultsPayload = {
+  results?: TournamentResults;
+};
+
 type GoalsAssistsProps = {
   tournament?: Tournament;
   embedded?: boolean;
@@ -83,6 +93,7 @@ export default function GoalsAssists({
     ? localSubmissionsKey
     : `${localSubmissionsKey}:${tournament.slug}`;
   const [stats, setStats] = useState<PlayerStatsState>(emptyPlayerStats);
+  const [matches, setMatches] = useState<TournamentResults["matches"]>({});
   const [fetchedSubmissions, setFetchedSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
@@ -107,6 +118,19 @@ export default function GoalsAssists({
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/results", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((payload: ResultsPayload) => {
+        if (!cancelled && payload.results?.matches) setMatches(payload.results.matches);
+      })
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
@@ -171,20 +195,25 @@ export default function GoalsAssists({
       .slice(0, 10);
   }, [stats.assists, stats.scorers]);
 
-  // Goals by country, summed from the cached scorer list (own goals excluded
-  // upstream) — no extra API calls.
+  // Goals by country, summed from the authoritative match results (the scorer
+  // feed is sparse — many goals have no attributed scorer). No extra API calls.
   const countryGoals = useMemo(() => {
     const totals = new Map<string, number>();
-    stats.scorers.forEach((row) => {
-      if (!row.team) return;
-      totals.set(row.team, (totals.get(row.team) ?? 0) + (row.goals ?? 0));
+    Object.values(matches).forEach((match) => {
+      if (match.status === "scheduled") return;
+      if (match.team1 && typeof match.home === "number") {
+        totals.set(match.team1, (totals.get(match.team1) ?? 0) + match.home);
+      }
+      if (match.team2 && typeof match.away === "number") {
+        totals.set(match.team2, (totals.get(match.team2) ?? 0) + match.away);
+      }
     });
     return [...totals.entries()]
       .map(([team, goals]) => ({ team, goals }))
       .filter((row) => row.goals > 0)
       .sort((a, b) => b.goals - a.goals || a.team.localeCompare(b.team))
       .slice(0, 10);
-  }, [stats.scorers]);
+  }, [matches]);
 
   const body = (
     <>
