@@ -1560,6 +1560,13 @@ function Leaderboard({
                   Groups {row.score.groupMatches + row.score.qualification} · KO {row.score.knockoutMatches + row.score.placements} · Bonus {row.score.bonuses}
                 </small>
               </span>
+              <span
+                className="perfect-count"
+                title="Perfect scorelines — exact result predicted (a 25-point group haul or 40-point knockout haul)"
+              >
+                <b>{row.score.exacts}</b>
+                <small>perfect</small>
+              </span>
               <b>{row.score.total}</b>
               <Eye size={16} />
             </button>
