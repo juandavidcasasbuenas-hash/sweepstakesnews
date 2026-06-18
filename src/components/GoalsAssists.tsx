@@ -171,6 +171,21 @@ export default function GoalsAssists({
       .slice(0, 10);
   }, [stats.assists, stats.scorers]);
 
+  // Goals by country, summed from the cached scorer list (own goals excluded
+  // upstream) — no extra API calls.
+  const countryGoals = useMemo(() => {
+    const totals = new Map<string, number>();
+    stats.scorers.forEach((row) => {
+      if (!row.team) return;
+      totals.set(row.team, (totals.get(row.team) ?? 0) + (row.goals ?? 0));
+    });
+    return [...totals.entries()]
+      .map(([team, goals]) => ({ team, goals }))
+      .filter((row) => row.goals > 0)
+      .sort((a, b) => b.goals - a.goals || a.team.localeCompare(b.team))
+      .slice(0, 10);
+  }, [stats.scorers]);
+
   const body = (
     <>
       {status ? <p className="export-notice">{status}</p> : null}
@@ -221,6 +236,44 @@ export default function GoalsAssists({
               <tr>
                 <td colSpan={3}>
                   {loading ? "Loading goals and assists..." : "No completed match event data has been cached yet."}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </section>
+
+      <section className="panel ga-table-panel">
+        <div className="section-title">
+          <span className="title-icon"><Medal size={18} /></span>
+          <div>
+            <h2>Top 10 Countries by Goals</h2>
+          </div>
+        </div>
+        <table className="ga-table">
+          <thead>
+            <tr>
+              <th scope="col">Country</th>
+              <th scope="col">Goals</th>
+            </tr>
+          </thead>
+          <tbody>
+            {countryGoals.length ? (
+              countryGoals.map((row) => (
+                <tr key={row.team}>
+                  <td>
+                    <span className="ga-player-line">
+                      <TeamFlag team={row.team} />
+                      <strong>{row.team}</strong>
+                    </span>
+                  </td>
+                  <td>{row.goals}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={2}>
+                  {loading ? "Loading goals..." : "No completed match event data has been cached yet."}
                 </td>
               </tr>
             )}
