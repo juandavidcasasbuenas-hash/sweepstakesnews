@@ -4803,6 +4803,15 @@ tr.third td:first-child {
   min-width: 0;
 }
 
+/* Name + flag + country on one line */
+.ga-player-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.5rem;
+  min-width: 0;
+}
+
 .ga-table strong {
   min-width: 0;
   overflow: hidden;

@@ -196,11 +196,13 @@ export default function GoalsAssists({
                 return (
                   <tr key={`${row.player}-${row.team ?? "team"}`}>
                     <td>
-                      <strong>{row.player}</strong>
-                      <small>
-                        <TeamFlag team={row.team} />
-                        {row.team ?? "Team TBC"}
-                      </small>
+                      <span className="ga-player-line">
+                        <strong>{row.player}</strong>
+                        <small>
+                          <TeamFlag team={row.team} />
+                          {row.team ?? "Team TBC"}
+                        </small>
+                      </span>
                       {predictors.length ? (
                         <span className="ga-predictors" title="Picked as top scorer by">
                           <span className="ga-predictors-label">Top-scorer pick</span>
