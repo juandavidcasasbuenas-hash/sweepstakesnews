@@ -1162,11 +1162,11 @@ function buildPredictionPdfHtml(
   </html>`;
 }
 
-function exportLeaderboardPng(
+async function exportLeaderboardPng(
   submissions: Submission[],
   results: TournamentResults,
   brandName: string,
-) {
+): Promise<boolean> {
   if (typeof document === "undefined" || submissions.length === 0) return false;
 
   const rows = submissions
@@ -1179,6 +1179,36 @@ function exportLeaderboardPng(
       (a, b) =>
         b.score.total - a.score.total || a.submission.name.localeCompare(b.submission.name),
     );
+
+  // Use the app's real brand web fonts (Oswald / Merriweather) rather than
+  // Impact / Georgia — those system fonts exist on desktop but not on most
+  // phones, so the canvas would silently fall back and lose the branding.
+  const rootStyles = getComputedStyle(document.documentElement);
+  const firstFamily = (value: string, fallback: string) => {
+    const family = value.split(",")[0]?.trim();
+    return family || fallback;
+  };
+  const displayFamily = firstFamily(rootStyles.getPropertyValue("--font-display"), "Oswald");
+  const bodyFamily = firstFamily(rootStyles.getPropertyValue("--font-body"), "Merriweather");
+  const display = `${displayFamily}, Impact, "Arial Narrow", sans-serif`;
+  const body = `${bodyFamily}, Georgia, serif`;
+  const sans = `${displayFamily}, Arial, sans-serif`;
+
+  // Make sure the weights we draw with are actually loaded before painting.
+  if (typeof document.fonts?.load === "function") {
+    try {
+      await Promise.all([
+        document.fonts.load(`700 48px ${displayFamily}`),
+        document.fonts.load(`600 16px ${displayFamily}`),
+        document.fonts.load(`700 30px ${displayFamily}`),
+        document.fonts.load(`700 17px ${bodyFamily}`),
+        document.fonts.load(`400 13px ${bodyFamily}`),
+      ]);
+      await document.fonts.ready;
+    } catch {
+      // Fall back to whatever is available; drawing still proceeds.
+    }
+  }
 
   const scale = 2;
   const width = 720;
@@ -1195,10 +1225,6 @@ function exportLeaderboardPng(
   if (!ctx) return false;
   ctx.scale(scale, scale);
 
-  const display = "Impact, 'Arial Narrow', sans-serif";
-  const body = "Georgia, serif";
-  const sans = "Arial, sans-serif";
-
   ctx.fillStyle = "#F5EFE0";
   ctx.fillRect(0, 0, width, height);
 
@@ -1208,12 +1234,12 @@ function exportLeaderboardPng(
   ctx.fillRect(0, 0, width, 5);
 
   ctx.fillStyle = "#FF3A3A";
-  ctx.font = `bold 11px ${sans}`;
+  ctx.font = `600 12px ${sans}`;
   ctx.fillText(`${brandName.toUpperCase()} · WORLD CUP 2026`, margin, 38);
 
   ctx.fillStyle = "#FFFFFF";
-  ctx.font = `48px ${display}`;
-  ctx.fillText("THE STANDINGS", margin, 88);
+  ctx.font = `700 48px ${display}`;
+  ctx.fillText("THE STANDINGS", margin, 90);
 
   const updatedAt = new Date(results.updatedAt);
   const updatedLabel =
@@ -1221,9 +1247,9 @@ function exportLeaderboardPng(
       ? `Updated ${updatedAt.toLocaleDateString([], { month: "short", day: "numeric" })} · ${updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
       : `As of ${new Date().toLocaleDateString([], { month: "short", day: "numeric" })}`;
   ctx.fillStyle = "rgba(245, 239, 224, 0.62)";
-  ctx.font = `11px ${sans}`;
+  ctx.font = `400 11px ${body}`;
   ctx.textAlign = "right";
-  ctx.fillText(updatedLabel, width - margin, 88);
+  ctx.fillText(updatedLabel, width - margin, 90);
   ctx.textAlign = "left";
 
   const truncate = (text: string, maxWidth: number) => {
@@ -1236,6 +1262,11 @@ function exportLeaderboardPng(
   };
 
   const rankColors: Record<number, string> = { 0: "#B5820A", 1: "#8A8A8A", 2: "#9C5A28" };
+
+  // Right-hand stat columns: detail · perfect · total.
+  const totalX = width - margin; // total points (big)
+  const perfectX = totalX - 64; // perfect-scoreline counter
+  const detailX = perfectX - 64; // Groups · KO · Bonus breakdown
 
   rows.forEach((row, index) => {
     const top = headerH + index * rowH;
@@ -1255,39 +1286,54 @@ function exportLeaderboardPng(
     ctx.fillStyle = rankColors[index] ?? "#111111";
     ctx.fillRect(margin, boxY, boxSize, boxSize);
     ctx.fillStyle = "#FFFFFF";
-    ctx.font = `16px ${display}`;
+    ctx.font = `600 16px ${display}`;
     ctx.textAlign = "center";
     ctx.fillText(String(index + 1), margin + boxSize / 2, boxY + 21);
     ctx.textAlign = "left";
 
     const nameX = margin + boxSize + 14;
     ctx.fillStyle = "#111111";
-    ctx.font = `bold 17px ${body}`;
-    ctx.fillText(truncate(row.submission.name, 280), nameX, top + 24);
+    ctx.font = `700 17px ${body}`;
+    ctx.fillText(truncate(row.submission.name, 230), nameX, top + 24);
     ctx.fillStyle = "#777777";
-    ctx.font = `11px ${sans}`;
-    ctx.fillText(truncate(`Champion: ${row.champion}`, 280), nameX, top + 41);
+    ctx.font = `400 11px ${body}`;
+    ctx.fillText(truncate(`Champion: ${row.champion}`, 230), nameX, top + 41);
 
+    // Groups / KO / Bonus breakdown
     ctx.textAlign = "right";
-    ctx.fillStyle = "#444444";
-    ctx.font = `11px ${sans}`;
+    ctx.fillStyle = "#555555";
+    ctx.font = `400 10px ${body}`;
     ctx.fillText(
-      `Groups ${row.score.groupMatches + row.score.qualification} · KO ${row.score.knockoutMatches + row.score.placements} · Bonus ${row.score.bonuses}`,
-      width - margin - 86,
-      top + 33,
+      `Groups ${row.score.groupMatches + row.score.qualification}`,
+      detailX,
+      top + 24,
+    );
+    ctx.fillText(
+      `KO ${row.score.knockoutMatches + row.score.placements} · Bonus ${row.score.bonuses}`,
+      detailX,
+      top + 39,
     );
 
+    // Perfect scorelines counter
+    ctx.fillStyle = "#B5820A";
+    ctx.font = `700 21px ${display}`;
+    ctx.fillText(String(row.score.exacts), perfectX, top + 30);
+    ctx.fillStyle = "#9A8246";
+    ctx.font = `600 8px ${sans}`;
+    ctx.fillText("PERFECT", perfectX, top + 42);
+
+    // Total points
     ctx.fillStyle = "#C8001E";
-    ctx.font = `30px ${display}`;
-    ctx.fillText(String(row.score.total), width - margin, top + 37);
+    ctx.font = `700 30px ${display}`;
+    ctx.fillText(String(row.score.total), totalX, top + 35);
     ctx.textAlign = "left";
   });
 
   const footTop = headerH + rows.length * rowH;
   ctx.fillStyle = "#777777";
-  ctx.font = `10px ${sans}`;
+  ctx.font = `400 10px ${body}`;
   ctx.fillText(
-    `${rows.length} ${rows.length === 1 ? "entry" : "entries"} · ${Object.keys(results.matches ?? {}).length} results in`,
+    `${rows.length} ${rows.length === 1 ? "entry" : "entries"} · ${Object.keys(results.matches ?? {}).length} results in · gold = perfect scorelines`,
     margin,
     footTop + 28,
   );
@@ -1296,17 +1342,23 @@ function exportLeaderboardPng(
 
   const slug =
     brandName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "sweepstakes";
-  canvas.toBlob((blob) => {
-    if (!blob) return;
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${slug}-standings.png`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }, "image/png");
+  await new Promise<void>((resolve) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        resolve();
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${slug}-standings.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      resolve();
+    }, "image/png");
+  });
 
   return true;
 }
@@ -2898,8 +2950,9 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
                   ) : null}
                   <button
                     className="secondary-button icon-button compact-btn"
-                    onClick={() => {
-                      const exported = exportLeaderboardPng(submissions, results, brandName);
+                    onClick={async () => {
+                      setExportNotice("Preparing standings image…");
+                      const exported = await exportLeaderboardPng(submissions, results, brandName);
                       setExportNotice(
                         exported
                           ? "Standings image saved — share it anywhere."
