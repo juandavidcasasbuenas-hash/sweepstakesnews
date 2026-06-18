@@ -49,7 +49,102 @@ export const teamFlagCodes: Record<string, string> = {
   Uzbekistan: "uz",
 };
 
+// Stats providers don't all use the same team strings as our fixtures — some
+// send FIFA 3-letter codes (BRA, NED, KOR…), some send alternate spellings
+// (Türkiye, Korea Republic, Côte d'Ivoire…). Map those onto the canonical key.
+const teamAliases: Record<string, string> = {
+  // FIFA / common 3-letter codes
+  ALG: "Algeria",
+  ARG: "Argentina",
+  AUS: "Australia",
+  AUT: "Austria",
+  BEL: "Belgium",
+  BIH: "Bosnia & Herzegovina",
+  BRA: "Brazil",
+  CAN: "Canada",
+  CPV: "Cape Verde",
+  COL: "Colombia",
+  CRO: "Croatia",
+  CUW: "Curaçao",
+  CZE: "Czech Republic",
+  COD: "DR Congo",
+  ECU: "Ecuador",
+  EGY: "Egypt",
+  ENG: "England",
+  FRA: "France",
+  GER: "Germany",
+  GHA: "Ghana",
+  HAI: "Haiti",
+  IRN: "Iran",
+  IRQ: "Iraq",
+  CIV: "Ivory Coast",
+  JPN: "Japan",
+  JOR: "Jordan",
+  MEX: "Mexico",
+  MAR: "Morocco",
+  NED: "Netherlands",
+  NZL: "New Zealand",
+  NOR: "Norway",
+  PAN: "Panama",
+  PAR: "Paraguay",
+  POR: "Portugal",
+  QAT: "Qatar",
+  KSA: "Saudi Arabia",
+  SCO: "Scotland",
+  SEN: "Senegal",
+  RSA: "South Africa",
+  KOR: "South Korea",
+  ESP: "Spain",
+  SWE: "Sweden",
+  SUI: "Switzerland",
+  TUN: "Tunisia",
+  TUR: "Turkey",
+  USA: "USA",
+  URU: "Uruguay",
+  UZB: "Uzbekistan",
+  // Alternate spellings / official long names
+  "United States": "USA",
+  "United States of America": "USA",
+  "Korea Republic": "South Korea",
+  Korea: "South Korea",
+  "Republic of Korea": "South Korea",
+  "IR Iran": "Iran",
+  "Cote d'Ivoire": "Ivory Coast",
+  "Côte d'Ivoire": "Ivory Coast",
+  "Türkiye": "Turkey",
+  Turkiye: "Turkey",
+  Czechia: "Czech Republic",
+  "Bosnia and Herzegovina": "Bosnia & Herzegovina",
+  "Congo DR": "DR Congo",
+  "Democratic Republic of the Congo": "DR Congo",
+  "Cabo Verde": "Cape Verde",
+  Holland: "Netherlands",
+};
+
+function normalizeTeam(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+const normalizedFlagIndex: Map<string, string> = (() => {
+  const index = new Map<string, string>();
+  for (const [name, code] of Object.entries(teamFlagCodes)) {
+    index.set(normalizeTeam(name), code);
+  }
+  for (const [alias, canonical] of Object.entries(teamAliases)) {
+    const code = teamFlagCodes[canonical];
+    if (code) index.set(normalizeTeam(alias), code);
+  }
+  return index;
+})();
+
 export function flagUrlFor(team: string) {
-  const code = teamFlagCodes[team];
+  if (!team) return "";
+  const code = teamFlagCodes[team] ?? normalizedFlagIndex.get(normalizeTeam(team));
   return code ? `https://flagcdn.com/w40/${code}.png` : "";
 }
