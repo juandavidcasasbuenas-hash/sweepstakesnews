@@ -173,6 +173,16 @@ function formatFixtureDate(fixture: Pick<ResolvedFixture, "date" | "time">) {
   );
 }
 
+function formatFixtureWeekday(fixture: Pick<ResolvedFixture, "date" | "time">) {
+  return (fixtureKickoffDate(fixture) ?? new Date(`${fixture.date}T12:00:00Z`)).toLocaleDateString(
+    matchDayLocale,
+    {
+      weekday: "short",
+      timeZone: matchDayTimeZone,
+    },
+  );
+}
+
 function formatFixtureTime(fixture: Pick<ResolvedFixture, "date" | "time">) {
   const kickoff = fixtureKickoffDate(fixture);
   if (!kickoff) return fixture.time;
@@ -1682,18 +1692,16 @@ function MatchDayView({
 
       <div className="matchday-strip" aria-label="Choose match date">
         {matchDays.map(([date, dayFixtures]) => {
-          const completed = dayFixtures.filter((fixture) => results.matches[fixture.id]).length;
           const dateLabel = dayFixtures[0] ? formatFixtureDate(dayFixtures[0]) : date;
+          const weekdayLabel = dayFixtures[0] ? formatFixtureWeekday(dayFixtures[0]) : "";
           return (
             <button
               key={date}
               className={date === activeDate ? "active" : ""}
               onClick={() => onDateChange(date)}
             >
+              <span className="matchday-weekday">{weekdayLabel}</span>
               <strong>{dateLabel}</strong>
-              <span>
-                {dayFixtures.length} match{dayFixtures.length === 1 ? "" : "es"}{completed > 0 ? ` · ${completed} results in` : ""}
-              </span>
             </button>
           );
         })}
