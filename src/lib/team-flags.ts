@@ -148,3 +148,22 @@ export function flagUrlFor(team: string) {
   const code = teamFlagCodes[team] ?? normalizedFlagIndex.get(normalizeTeam(team));
   return code ? `https://flagcdn.com/w40/${code}.png` : "";
 }
+
+const normalizedNameIndex: Map<string, string> = (() => {
+  const index = new Map<string, string>();
+  for (const name of Object.keys(teamFlagCodes)) {
+    index.set(normalizeTeam(name), name);
+  }
+  for (const [alias, canonical] of Object.entries(teamAliases)) {
+    if (teamFlagCodes[canonical]) index.set(normalizeTeam(alias), canonical);
+  }
+  return index;
+})();
+
+// Resolve a hand-typed team string (code, alt spelling, casing) to our
+// canonical team name, or undefined if it isn't recognised.
+export function canonicalTeamName(team: string): string | undefined {
+  if (!team) return undefined;
+  if (teamFlagCodes[team]) return team;
+  return normalizedNameIndex.get(normalizeTeam(team));
+}

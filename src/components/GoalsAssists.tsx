@@ -9,7 +9,7 @@ import {
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { matchPlayerName } from "@/lib/player-names";
-import { flagUrlFor } from "@/lib/team-flags";
+import { canonicalTeamName, flagUrlFor } from "@/lib/team-flags";
 import type {
   PlayerGoalAssistRow,
   PlayerStatsState,
@@ -215,6 +215,20 @@ export default function GoalsAssists({
       .slice(0, 10);
   }, [matches]);
 
+  // Who predicted each team to score the most goals (matched on canonical name).
+  const mostGoalsPredictors = useMemo(() => {
+    const map = new Map<string, string[]>();
+    submissions.forEach((submission) => {
+      const pick = submission.bonuses?.mostGoalsTeam?.trim();
+      if (!pick) return;
+      const key = (canonicalTeamName(pick) ?? pick).toLowerCase();
+      const backers = map.get(key) ?? [];
+      if (!backers.includes(submission.name)) backers.push(submission.name);
+      map.set(key, backers);
+    });
+    return map;
+  }, [submissions]);
+
   const body = (
     <>
       {status ? <p className="export-notice">{status}</p> : null}
@@ -288,17 +302,28 @@ export default function GoalsAssists({
           </thead>
           <tbody>
             {countryGoals.length ? (
-              countryGoals.map((row) => (
-                <tr key={row.team}>
-                  <td>
-                    <span className="ga-player-line">
-                      <TeamFlag team={row.team} />
-                      <strong>{row.team}</strong>
-                    </span>
-                  </td>
-                  <td>{row.goals}</td>
-                </tr>
-              ))
+              countryGoals.map((row) => {
+                const predictors = mostGoalsPredictors.get(row.team.toLowerCase()) ?? [];
+                return (
+                  <tr key={row.team}>
+                    <td>
+                      <span className="ga-player-line">
+                        <TeamFlag team={row.team} />
+                        <strong>{row.team}</strong>
+                      </span>
+                      {predictors.length ? (
+                        <span className="ga-predictors" title="Picked as the top-scoring team by">
+                          <span className="ga-predictors-label">Most-goals pick</span>
+                          {predictors.map((name) => (
+                            <span key={name} className="ga-pred-pill">{name}</span>
+                          ))}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td>{row.goals}</td>
+                  </tr>
+                );
+              })
             ) : (
               <tr>
                 <td colSpan={2}>
