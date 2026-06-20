@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  normalizeApiFootballPlayerStats,
   normalizeMatchPlayerStats,
-  parseFoxStandardStats,
   playerStatsCallsLast24Hours,
   playerStatsRefreshTargets,
   rebuildPlayerStats,
@@ -166,97 +166,78 @@ test("ranks one-goal scorers with assists ahead of one-goal scorers without assi
   assert.equal(top10.includes("No Assist 10"), false);
 });
 
-test("uses supplemental assists to break scorer table ties", () => {
-  const matchStats = Object.fromEntries(
-    Array.from({ length: 10 }, (_, index) => {
-      const fixtureId = index + 1;
-      return [
-        fixtureId,
+test("normalizes API-Football fixture events with assists", () => {
+  const matchStats = normalizeApiFootballPlayerStats(
+    {
+      response: [
         {
-          fixtureId,
-          checkedAt: "2026-06-18T12:00:00.000Z",
+          fixture: { id: 92001 },
+          teams: {
+            home: { name: "USA" },
+            away: { name: "Paraguay" },
+          },
           events: [
             {
-              fixtureId,
-              team: "USA",
-              scorer: `No Assist ${String(fixtureId).padStart(2, "0")}`,
+              time: { elapsed: 31, extra: null },
+              team: { name: "USA" },
+              player: { name: "Folarin Balogun" },
+              assist: { name: "Christian Pulisic" },
+              type: "Goal",
+              detail: "Normal Goal",
+            },
+            {
+              time: { elapsed: 45, extra: 5 },
+              team: { name: "USA" },
+              player: { name: "Folarin Balogun" },
+              assist: { name: "Christian Pulisic" },
+              type: "Goal",
+              detail: "Normal Goal",
+            },
+            {
+              time: { elapsed: 7, extra: null },
+              team: { name: "USA" },
+              player: { name: "Damián Bobadilla" },
+              assist: { name: null },
+              type: "Goal",
+              detail: "Own Goal",
             },
           ],
         },
-      ];
-    }),
-  );
-
-  const stats = rebuildPlayerStats(
-    {
-      ...matchStats,
-      11: {
-        fixtureId: 11,
-        checkedAt: "2026-06-18T12:00:00.000Z",
-        events: [
-          {
-            fixtureId: 11,
-            team: "USA",
-            scorer: "Hwang In-Beom",
-          },
-        ],
-      },
+      ],
     },
     {
-      scorers: [],
-      assists: [],
-      matchStats: {},
-      updatedAt: "2026-06-18T12:00:00.000Z",
-      supplementalPlayerStats: [
-        {
-          player: "Hwang In-Beom",
-          team: "USA",
-          assists: 1,
-        },
-      ],
+      20: {
+        fixtureId: 20,
+        providerId: 20,
+        team1: "USA",
+        team2: "Paraguay",
+        home: 4,
+        away: 1,
+        status: "completed",
+      },
     },
     "2026-06-18T12:00:00.000Z",
   );
 
-  const top10 = stats.scorers.slice(0, 10).map((row) => row.player);
+  const stats = rebuildPlayerStats(matchStats, undefined, "2026-06-18T12:00:00.000Z");
 
-  assert.equal(stats.scorers[0].player, "Hwang In-Beom");
-  assert.equal(stats.scorers[0].assists, 1);
-  assert.equal(top10.includes("No Assist 10"), false);
-});
-
-test("parses FOX standard stats rows for supplemental goals and assists", () => {
-  const stats = parseFoxStandardStats(`
-    <tr id="tbl-row-2">
-      <td data-index="1">
-        <a class="table-entity-name ff-h"> Chris Wood <sup>NZL</sup></a>
-      </td>
-      <td data-index="7"><span class="table-result">0</span></td>
-      <td data-index="11"><span class="table-result">2</span></td>
-    </tr>
-    <tr id="tbl-row-3">
-      <td data-index="1">
-        <a class="table-entity-name ff-h"> Alexander Isak <sup>SWE</sup></a>
-      </td>
-      <td data-index="7"><span class="table-result">1</span></td>
-      <td data-index="11"><span class="table-result">2</span></td>
-    </tr>
-  `);
-
-  assert.deepEqual(stats, [
-    {
-      player: "Chris Wood",
-      team: "NZL",
-      goals: 0,
-      assists: 2,
-    },
-    {
-      player: "Alexander Isak",
-      team: "SWE",
-      goals: 1,
-      assists: 2,
-    },
-  ]);
+  assert.deepEqual(stats.scorers[0], {
+    player: "Folarin Balogun",
+    team: "USA",
+    goals: 2,
+    assists: 0,
+    penaltyGoals: 0,
+    matches: [20],
+  });
+  assert.deepEqual(stats.assists[0], {
+    player: "Christian Pulisic",
+    team: "USA",
+    goals: 0,
+    assists: 2,
+    penaltyGoals: 0,
+    matches: [20],
+  });
+  assert.equal(stats.scorers.some((row) => row.player === "Damián Bobadilla"), false);
 });
 
 test("selects missing and stale player stat matches for refresh", () => {
