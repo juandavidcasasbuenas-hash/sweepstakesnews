@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { readStoredPlayerStats } from "@/lib/player-stats";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     return NextResponse.json(await readStoredPlayerStats(), {
       headers: {
-        "cache-control": "public, s-maxage=300, stale-while-revalidate=3600",
+        "cache-control": "no-store, no-cache, must-revalidate",
       },
     });
   } catch (error) {

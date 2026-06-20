@@ -166,15 +166,15 @@ test("ranks one-goal scorers with assists ahead of one-goal scorers without assi
   assert.equal(top10.includes("No Assist 10"), false);
 });
 
-test("normalizes API-Football fixture events with assists", () => {
+test("normalizes API-Football fixture events with assists when provider teams are reversed", () => {
   const matchStats = normalizeApiFootballPlayerStats(
     {
       response: [
         {
           fixture: { id: 92001 },
           teams: {
-            home: { name: "USA" },
-            away: { name: "Paraguay" },
+            home: { name: "Paraguay" },
+            away: { name: "USA" },
           },
           events: [
             {

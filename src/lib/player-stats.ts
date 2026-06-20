@@ -125,8 +125,10 @@ function findFixtureByTeams(team1?: string, team2?: string) {
   if (!teamNameKey(team1) || !teamNameKey(team2)) return undefined;
   return fixtures.find(
     (fixture) =>
-      teamNamesEqual(fixture.team1, team1) &&
-      teamNamesEqual(fixture.team2, team2),
+      (teamNamesEqual(fixture.team1, team1) &&
+        teamNamesEqual(fixture.team2, team2)) ||
+      (teamNamesEqual(fixture.team1, team2) &&
+        teamNamesEqual(fixture.team2, team1)),
   );
 }
 
@@ -137,8 +139,10 @@ function mappedFixtureIdByTeams(
 ) {
   const stored = Object.values(storedMatches).find(
     (match) =>
-      teamNamesEqual(match.team1, team1) &&
-      teamNamesEqual(match.team2, team2),
+      (teamNamesEqual(match.team1, team1) &&
+        teamNamesEqual(match.team2, team2)) ||
+      (teamNamesEqual(match.team1, team2) &&
+        teamNamesEqual(match.team2, team1)),
   );
   return stored?.fixtureId ?? findFixtureByTeams(team1, team2)?.id;
 }
@@ -587,18 +591,23 @@ export async function refreshStoredPlayerStats(): Promise<PlayerStatsWrite> {
       const apiFootballStats = await fetchApiFootballPlayerStats(stored.results.matches, checkedAt);
       if (apiFootballStats) {
         spentCalls += apiFootballStats.calls;
-        const stats = rebuildPlayerStats(
-          { ...current.matchStats, ...apiFootballStats.matchStats },
-          current,
-          checkedAt,
-        );
-        const saved = await writePlayerStats(stored.results, {
-          ...stats,
-          providerCalls: bumpedProviderCalls(current, spentCalls),
-          providerCallTimestamps: bumpedProviderCallTimestamps(current, spentCalls),
-          providerWarning: undefined,
-        });
-        return saved;
+        const apiFootballMatchCount = Object.keys(apiFootballStats.matchStats).length;
+        if (!apiFootballMatchCount) {
+          warning = "API-Football returned no usable player goal event payloads.";
+        } else {
+          const stats = rebuildPlayerStats(
+            { ...current.matchStats, ...apiFootballStats.matchStats },
+            current,
+            checkedAt,
+          );
+          const saved = await writePlayerStats(stored.results, {
+            ...stats,
+            providerCalls: bumpedProviderCalls(current, spentCalls),
+            providerCallTimestamps: bumpedProviderCallTimestamps(current, spentCalls),
+            providerWarning: undefined,
+          });
+          return saved;
+        }
       }
     } catch (error) {
       warning =
@@ -616,7 +625,7 @@ export async function refreshStoredPlayerStats(): Promise<PlayerStatsWrite> {
     return { ...saved, warning };
   }
 
-  const remainingCalls = Math.max(0, budget.cap - budget.count);
+  const remainingCalls = Math.max(0, budget.cap - budget.count - spentCalls);
   const targetsForToday = targets.slice(0, remainingCalls);
   const matchStats = { ...current.matchStats };
 
