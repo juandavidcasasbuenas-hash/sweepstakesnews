@@ -14,6 +14,7 @@ import type {
 
 const WC2026_API_BASE = "https://api.wc2026api.com";
 const DEFAULT_PLAYER_STATS_DAILY_CALL_BUDGET = 120;
+const PLAYER_STATS_RECHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const emptyStatsDate = new Date(0).toISOString();
 
 export const emptyPlayerStats: PlayerStatsState = {
@@ -335,7 +336,10 @@ async function fetchProviderMatchStats(target: ProviderMatchTarget) {
 
 function completedMatchTargets(matches: TournamentResults["matches"]) {
   return Object.values(matches)
-    .filter((match): match is ResultMatch => Boolean(match))
+    .filter(
+      (match): match is ResultMatch =>
+        Boolean(match) && match.status !== "scheduled" && match.phase !== "PRE",
+    )
     .map((match) => ({
       fixtureId: match.fixtureId,
       providerId:
@@ -344,6 +348,30 @@ function completedMatchTargets(matches: TournamentResults["matches"]) {
         fixtures.find((fixture) => fixture.id === match.fixtureId)?.id,
     }))
     .sort((a, b) => a.fixtureId - b.fixtureId);
+}
+
+function statCheckedAtTime(stat: StoredMatchPlayerStats | undefined) {
+  if (!stat) return 0;
+  const time = new Date(stat.checkedAt).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+export function playerStatsRefreshTargets(
+  matches: TournamentResults["matches"],
+  stats: Pick<PlayerStatsState, "matchStats">,
+  now = new Date(),
+) {
+  const staleBefore = now.getTime() - PLAYER_STATS_RECHECK_INTERVAL_MS;
+  return completedMatchTargets(matches)
+    .filter((target) => {
+      const cached = stats.matchStats[target.fixtureId];
+      return !cached || statCheckedAtTime(cached) <= staleBefore;
+    })
+    .sort((a, b) => {
+      const aTime = statCheckedAtTime(stats.matchStats[a.fixtureId]);
+      const bTime = statCheckedAtTime(stats.matchStats[b.fixtureId]);
+      return aTime - bTime || a.fixtureId - b.fixtureId;
+    });
 }
 
 async function writePlayerStats(
@@ -366,9 +394,7 @@ export async function refreshStoredPlayerStats(): Promise<PlayerStatsWrite> {
     return { mode: stored.mode, stats: current, warning };
   }
 
-  const targets = completedMatchTargets(stored.results.matches).filter(
-    (target) => !current.matchStats[target.fixtureId],
-  );
+  const targets = playerStatsRefreshTargets(stored.results.matches, current);
   if (!targets.length) {
     const checkedAt = new Date().toISOString();
     const stats = rebuildPlayerStats(current.matchStats, current, checkedAt);
