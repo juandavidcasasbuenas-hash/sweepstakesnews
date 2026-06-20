@@ -9,10 +9,13 @@ import type {
   PlayerStatsState,
   ResultMatch,
   StoredMatchPlayerStats,
+  SupplementalPlayerStat,
   TournamentResults,
 } from "@/types/game";
 
 const WC2026_API_BASE = "https://api.wc2026api.com";
+const FOX_WORLD_CUP_STANDARD_STATS_URL =
+  "https://www.foxsports.com/soccer/fifa-world-cup/stats?category=standard&groupId=12&season=2026&sort=a&sortOrder=desc";
 const DEFAULT_PLAYER_STATS_DAILY_CALL_BUDGET = 120;
 const PLAYER_STATS_RECHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const emptyStatsDate = new Date(0).toISOString();
@@ -67,6 +70,24 @@ function firstBoolean(...values: unknown[]) {
   return undefined;
 }
 
+function htmlText(value: string) {
+  return value
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function firstInteger(value: string | undefined) {
+  if (!value) return undefined;
+  const parsed = Number.parseInt(htmlText(value).replace(/,/g, ""), 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 function rowsFromPayload(payload: unknown) {
   if (Array.isArray(payload)) return payload;
   const source = asRecord(payload);
@@ -114,7 +135,7 @@ function normalizeGoalEvent(
 
   const ownGoal =
     firstBoolean(source.ownGoal, source.own_goal, source.is_own_goal) ??
-    kind.includes("own goal");
+    (kind.includes("own goal") || kind.includes("own_goal"));
   const penalty =
     firstBoolean(source.penalty, source.is_penalty, source.from_penalty) ??
     kind.includes("penalty");
@@ -157,7 +178,10 @@ export function normalizeMatchPlayerStats(
   };
 }
 
-function aggregateRows(matchStats: Record<number, StoredMatchPlayerStats>) {
+function aggregateRows(
+  matchStats: Record<number, StoredMatchPlayerStats>,
+  supplementalPlayerStats: SupplementalPlayerStat[] = [],
+) {
   const rows = new Map<string, PlayerGoalAssistRow>();
 
   function rowFor(player: string, team?: string) {
@@ -192,19 +216,28 @@ function aggregateRows(matchStats: Record<number, StoredMatchPlayerStats>) {
     });
   });
 
+  supplementalPlayerStats.forEach((stat) => {
+    if (!stat.player.trim()) return;
+    const row = rowFor(stat.player.trim(), stat.team?.trim() || undefined);
+    row.goals = Math.max(row.goals, stat.goals ?? 0);
+    row.assists = Math.max(row.assists, stat.assists ?? 0);
+  });
+
   const allRows = [...rows.values()].map((row) => ({
     ...row,
     matches: [...row.matches].sort((a, b) => a - b),
   }));
+  const matchesForSort = (row: PlayerGoalAssistRow) =>
+    row.matches.length || Number.MAX_SAFE_INTEGER;
   const byGoals = (a: PlayerGoalAssistRow, b: PlayerGoalAssistRow) =>
     b.goals - a.goals ||
     b.assists - a.assists ||
-    a.matches.length - b.matches.length ||
+    matchesForSort(a) - matchesForSort(b) ||
     a.player.localeCompare(b.player);
   const byAssists = (a: PlayerGoalAssistRow, b: PlayerGoalAssistRow) =>
     b.assists - a.assists ||
     b.goals - a.goals ||
-    a.matches.length - b.matches.length ||
+    matchesForSort(a) - matchesForSort(b) ||
     a.player.localeCompare(b.player);
 
   return {
@@ -218,7 +251,7 @@ export function rebuildPlayerStats(
   previous: PlayerStatsState = emptyPlayerStats,
   checkedAt = new Date().toISOString(),
 ): PlayerStatsState {
-  const rankings = aggregateRows(matchStats);
+  const rankings = aggregateRows(matchStats, previous.supplementalPlayerStats);
   return {
     ...previous,
     ...rankings,
@@ -309,6 +342,55 @@ async function fetchJson(url: string, init?: RequestInit) {
   return response.json();
 }
 
+async function fetchText(url: string, init?: RequestInit) {
+  const headers = new Headers(init?.headers);
+  if (!headers.has("user-agent")) headers.set("user-agent", "Mozilla/5.0");
+  const response = await fetch(url, {
+    ...init,
+    cache: "no-store",
+    headers,
+  });
+  if (!response.ok) {
+    throw new Error(`${url} returned ${response.status}`);
+  }
+  return response.text();
+}
+
+export function parseFoxStandardStats(html: string): SupplementalPlayerStat[] {
+  const rows = html.match(/<tr\b[^>]*id="tbl-row-\d+"[\s\S]*?<\/tr>/g) ?? [];
+  const stats: SupplementalPlayerStat[] = [];
+  rows.forEach((row) => {
+    const entityHtml = row.match(/class="table-entity-name[^"]*"[^>]*>([\s\S]*?)<\/a>/)?.[1];
+    if (!entityHtml) return;
+    const team = htmlText(entityHtml.match(/<sup[^>]*>([\s\S]*?)<\/sup>/)?.[1] ?? "");
+    const player = htmlText(entityHtml.replace(/<sup[^>]*>[\s\S]*?<\/sup>/, ""));
+    if (!player) return;
+
+    const cells = new Map<number, string>();
+    for (const cell of row.match(/<td\b[\s\S]*?<\/td>/g) ?? []) {
+      const index = firstInteger(cell.match(/data-index="(\d+)"/)?.[1]);
+      const value = cell.match(/<span class="table-result[^"]*"[^>]*>([\s\S]*?)<\/span>/)?.[1];
+      if (index !== undefined && value !== undefined) cells.set(index, value);
+    }
+
+    const goals = firstInteger(cells.get(7));
+    const assists = firstInteger(cells.get(11));
+    if ((goals ?? 0) <= 0 && (assists ?? 0) <= 0) return;
+
+    const stat: SupplementalPlayerStat = { player };
+    if (team) stat.team = team;
+    if (goals !== undefined) stat.goals = goals;
+    if (assists !== undefined) stat.assists = assists;
+    stats.push(stat);
+  });
+  return stats;
+}
+
+async function fetchSupplementalPlayerStats() {
+  const url = process.env.PLAYER_STATS_SUPPLEMENTAL_URL ?? FOX_WORLD_CUP_STANDARD_STATS_URL;
+  return parseFoxStandardStats(await fetchText(url));
+}
+
 function wc2026Headers() {
   return { authorization: `Bearer ${process.env.WC2026_API_KEY}` };
 }
@@ -395,30 +477,47 @@ export async function refreshStoredPlayerStats(): Promise<PlayerStatsWrite> {
   }
 
   const targets = playerStatsRefreshTargets(stored.results.matches, current);
+  let supplementalPlayerStats = current.supplementalPlayerStats ?? [];
+  let warning: string | undefined;
+  try {
+    supplementalPlayerStats = await fetchSupplementalPlayerStats();
+  } catch (error) {
+    warning =
+      error instanceof Error ? error.message : "Could not refresh supplemental player stats";
+  }
+
   if (!targets.length) {
     const checkedAt = new Date().toISOString();
-    const stats = rebuildPlayerStats(current.matchStats, current, checkedAt);
-    return writePlayerStats(stored.results, stats);
+    const stats = rebuildPlayerStats(
+      current.matchStats,
+      { ...current, supplementalPlayerStats, providerWarning: warning },
+      checkedAt,
+    );
+    const saved = await writePlayerStats(stored.results, stats);
+    return { ...saved, warning };
   }
 
   const remainingCalls = Math.max(0, budget.cap - budget.count);
   const targetsForToday = targets.slice(0, remainingCalls);
   let spentCalls = 0;
   const matchStats = { ...current.matchStats };
-  let warning: string | undefined;
 
   for (const target of targetsForToday) {
     spentCalls += 1;
     try {
       matchStats[target.fixtureId] = await fetchProviderMatchStats(target);
     } catch (error) {
-      warning = error instanceof Error ? error.message : "Could not refresh goals and assists";
+      warning ??= error instanceof Error ? error.message : "Could not refresh goals and assists";
       break;
     }
   }
 
   const checkedAt = new Date().toISOString();
-  const stats = rebuildPlayerStats(matchStats, current, checkedAt);
+  const stats = rebuildPlayerStats(
+    matchStats,
+    { ...current, supplementalPlayerStats },
+    checkedAt,
+  );
   const saved = await writePlayerStats(stored.results, {
     ...stats,
     providerCalls: bumpedProviderCalls(current, spentCalls),

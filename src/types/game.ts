@@ -112,10 +112,18 @@ export type PlayerGoalAssistRow = {
   matches: number[];
 };
 
+export type SupplementalPlayerStat = {
+  player: string;
+  team?: string;
+  goals?: number;
+  assists?: number;
+};
+
 export type PlayerStatsState = {
   scorers: PlayerGoalAssistRow[];
   assists: PlayerGoalAssistRow[];
   matchStats: Record<number, StoredMatchPlayerStats>;
+  supplementalPlayerStats?: SupplementalPlayerStat[];
   updatedAt: string;
   providerCheckedAt?: string;
   providerWarning?: string;

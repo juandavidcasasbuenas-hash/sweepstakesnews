@@ -87,13 +87,14 @@ Provider calls are deliberately throttled for the WC2026 free tier:
 
 `/goals-assists` shows cached leading scorers and assists. Page views never call
 the provider. The nightly cron refreshes match results once, then fetches
-`/matches/:id/stats` only for completed matches that are not already cached:
+`/matches/:id/stats` for completed/live matches whose player stats are missing
+or stale. WC2026 match timelines currently include scorers but not assists, so
+refreshes also cache a supplemental player stat table for assists:
 
 ```text
 /api/cron/update-goals-assists
 ```
 
 The default player-stat cap is 120 calls/day. With the existing 90-call results
-cap, the app can spend at most 210 provider calls/day by default. On a 500
-calls/day key that leaves 290 calls of headroom, and a full-tournament catch-up
-after the final is still bounded by 104 match-stat calls plus 1 results call.
+cap, the app can spend at most 210 WC2026 provider calls/day by default. On a 500
+calls/day key that leaves 290 calls of headroom.

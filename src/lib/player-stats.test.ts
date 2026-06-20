@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   normalizeMatchPlayerStats,
+  parseFoxStandardStats,
   playerStatsCallsLast24Hours,
   playerStatsRefreshTargets,
   rebuildPlayerStats,
@@ -61,6 +62,28 @@ test("normalizes goal timeline events and aggregates scorer and assist tables", 
     stats.scorers.some((row) => row.player === "Defender One"),
     false,
   );
+});
+
+test("treats underscore own-goal event types as own goals", () => {
+  const match = normalizeMatchPlayerStats(
+    {
+      timeline: [
+        {
+          type: "own_goal",
+          minute: 7,
+          team: "USA",
+          player: "Damián Bobadilla",
+        },
+      ],
+    },
+    { fixtureId: 20, providerId: 20 },
+    "2026-06-17T23:55:00.000Z",
+  );
+
+  const stats = rebuildPlayerStats({ 20: match }, undefined, "2026-06-17T23:55:00.000Z");
+
+  assert.equal(match.events[0].ownGoal, true);
+  assert.equal(stats.scorers.some((row) => row.player === "Damián Bobadilla"), false);
 });
 
 test("counts player stat API calls in the last 24 hours", () => {
@@ -141,6 +164,99 @@ test("ranks one-goal scorers with assists ahead of one-goal scorers without assi
   assert.equal(stats.scorers[0].goals, 1);
   assert.equal(stats.scorers[0].assists, 1);
   assert.equal(top10.includes("No Assist 10"), false);
+});
+
+test("uses supplemental assists to break scorer table ties", () => {
+  const matchStats = Object.fromEntries(
+    Array.from({ length: 10 }, (_, index) => {
+      const fixtureId = index + 1;
+      return [
+        fixtureId,
+        {
+          fixtureId,
+          checkedAt: "2026-06-18T12:00:00.000Z",
+          events: [
+            {
+              fixtureId,
+              team: "USA",
+              scorer: `No Assist ${String(fixtureId).padStart(2, "0")}`,
+            },
+          ],
+        },
+      ];
+    }),
+  );
+
+  const stats = rebuildPlayerStats(
+    {
+      ...matchStats,
+      11: {
+        fixtureId: 11,
+        checkedAt: "2026-06-18T12:00:00.000Z",
+        events: [
+          {
+            fixtureId: 11,
+            team: "USA",
+            scorer: "Hwang In-Beom",
+          },
+        ],
+      },
+    },
+    {
+      scorers: [],
+      assists: [],
+      matchStats: {},
+      updatedAt: "2026-06-18T12:00:00.000Z",
+      supplementalPlayerStats: [
+        {
+          player: "Hwang In-Beom",
+          team: "USA",
+          assists: 1,
+        },
+      ],
+    },
+    "2026-06-18T12:00:00.000Z",
+  );
+
+  const top10 = stats.scorers.slice(0, 10).map((row) => row.player);
+
+  assert.equal(stats.scorers[0].player, "Hwang In-Beom");
+  assert.equal(stats.scorers[0].assists, 1);
+  assert.equal(top10.includes("No Assist 10"), false);
+});
+
+test("parses FOX standard stats rows for supplemental goals and assists", () => {
+  const stats = parseFoxStandardStats(`
+    <tr id="tbl-row-2">
+      <td data-index="1">
+        <a class="table-entity-name ff-h"> Chris Wood <sup>NZL</sup></a>
+      </td>
+      <td data-index="7"><span class="table-result">0</span></td>
+      <td data-index="11"><span class="table-result">2</span></td>
+    </tr>
+    <tr id="tbl-row-3">
+      <td data-index="1">
+        <a class="table-entity-name ff-h"> Alexander Isak <sup>SWE</sup></a>
+      </td>
+      <td data-index="7"><span class="table-result">1</span></td>
+      <td data-index="11"><span class="table-result">2</span></td>
+    </tr>
+  `);
+
+  assert.deepEqual(stats, [
+    {
+      player: "Chris Wood",
+      team: "NZL",
+      goals: 0,
+      assists: 2,
+    },
+    {
+      player: "Alexander Isak",
+      team: "SWE",
+      goals: 1,
+      assists: 2,
+    },
+  ]);
 });
 
 test("selects missing and stale player stat matches for refresh", () => {
