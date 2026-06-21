@@ -9,6 +9,7 @@ import type {
   PlayerStatsState,
   ResultMatch,
   StoredMatchPlayerStats,
+  SupplementalPlayerStat,
   TournamentResults,
 } from "@/types/game";
 
@@ -17,6 +18,9 @@ const API_FOOTBALL_BASE = "https://v3.football.api-sports.io";
 const API_FOOTBALL_WORLD_CUP_LEAGUE = 1;
 const API_FOOTBALL_WORLD_CUP_SEASON = 2026;
 const API_FOOTBALL_FIXTURE_BATCH_SIZE = 20;
+const FIRECRAWL_SCRAPE_URL = "https://api.firecrawl.dev/v2/scrape";
+const FIFA_TOP_SCORER_STATS_URL =
+  "https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/statistics/player-statistics?group=gcp_top_scorer";
 const DEFAULT_PLAYER_STATS_DAILY_CALL_BUDGET = 120;
 const PLAYER_STATS_RECHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const emptyStatsDate = new Date(0).toISOString();
@@ -231,7 +235,10 @@ export function normalizeMatchPlayerStats(
   };
 }
 
-function aggregateRows(matchStats: Record<number, StoredMatchPlayerStats>) {
+function aggregateRows(
+  matchStats: Record<number, StoredMatchPlayerStats>,
+  supplementalPlayerStats: SupplementalPlayerStat[] = [],
+) {
   const rows = new Map<string, PlayerGoalAssistRow>();
 
   function rowFor(player: string, team?: string) {
@@ -266,6 +273,13 @@ function aggregateRows(matchStats: Record<number, StoredMatchPlayerStats>) {
     });
   });
 
+  supplementalPlayerStats.forEach((stat) => {
+    if (!stat.player.trim()) return;
+    const row = rowFor(stat.player.trim(), stat.team?.trim() || undefined);
+    row.goals = Math.max(row.goals, stat.goals ?? 0);
+    row.assists = Math.max(row.assists, stat.assists ?? 0);
+  });
+
   const allRows = [...rows.values()].map((row) => ({
     ...row,
     matches: [...row.matches].sort((a, b) => a - b),
@@ -294,7 +308,7 @@ export function rebuildPlayerStats(
   previous: PlayerStatsState = emptyPlayerStats,
   checkedAt = new Date().toISOString(),
 ): PlayerStatsState {
-  const rankings = aggregateRows(matchStats);
+  const rankings = aggregateRows(matchStats, previous.supplementalPlayerStats);
   return {
     ...previous,
     ...rankings,
@@ -383,6 +397,114 @@ async function fetchJson(url: string, init?: RequestInit) {
     );
   }
   return response.json();
+}
+
+function htmlText(value: string) {
+  return value
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function markdownTableCells(row: string) {
+  const trimmed = row.trim();
+  if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return [];
+  return trimmed.slice(1, -1).split("|").map((cell) => cell.trim());
+}
+
+function firstInteger(value: string | undefined) {
+  if (!value) return undefined;
+  const parsed = Number.parseInt(htmlText(value).replace(/,/g, ""), 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function fifaPlayerFromCell(cell: string) {
+  const normalized = cell.replace(/\\\|/g, "|");
+  const direct = normalized.match(/<br\s*\/?>([^<|]+?)<br\s*\/?>!\[([A-Z]{3})\]/i);
+  if (direct) {
+    return { player: htmlText(direct[1]), team: direct[2].toUpperCase() };
+  }
+
+  const segments = normalized
+    .split(/<br\s*\/?>/i)
+    .map((segment) => htmlText(segment.replace(/!\[[^\]]*\]\([^)]*\)/g, "")))
+    .filter(Boolean);
+  const player = segments.find((segment) => !/^[A-Z]{2,6}$/.test(segment));
+  const flag = normalized.match(/!\[([A-Z]{3})\]\(/);
+  return player ? { player, team: flag?.[1]?.toUpperCase() } : undefined;
+}
+
+export function parseFifaPlayerStatisticsMarkdown(markdown: string): SupplementalPlayerStat[] {
+  const stats: SupplementalPlayerStat[] = [];
+  const lines = markdown.split(/\r?\n/);
+  const headerIndex = lines.findIndex((line) => {
+    const cells = markdownTableCells(line).map((cell) => cell.toLowerCase());
+    return cells.includes("rank") && cells.includes("player") && cells.includes("goals") && cells.includes("assists");
+  });
+  if (headerIndex < 0) return stats;
+
+  const headers = markdownTableCells(lines[headerIndex]).map((cell) => cell.toLowerCase());
+  const playerIndex = headers.indexOf("player");
+  const goalsIndex = headers.indexOf("goals");
+  const assistsIndex = headers.indexOf("assists");
+  if (playerIndex < 0 || goalsIndex < 0 || assistsIndex < 0) return stats;
+
+  for (const line of lines.slice(headerIndex + 1)) {
+    const cells = markdownTableCells(line);
+    if (!cells.length) break;
+    if (cells.every((cell) => /^:?-{3,}:?$/.test(cell))) continue;
+
+    const player = fifaPlayerFromCell(cells[playerIndex] ?? "");
+    if (!player?.player) continue;
+    const goals = firstInteger(cells[goalsIndex]);
+    const assists = firstInteger(cells[assistsIndex]);
+    if ((goals ?? 0) <= 0 && (assists ?? 0) <= 0) continue;
+    stats.push({
+      player: player.player,
+      team: player.team,
+      goals,
+      assists,
+    });
+  }
+
+  return stats;
+}
+
+function firecrawlApiKey() {
+  return process.env.FIRECRAWL_API_KEY ?? process.env.FIRECRAWL_KEY;
+}
+
+function firecrawlHeaders(apiKey: string) {
+  return {
+    authorization: `Bearer ${apiKey}`,
+    "content-type": "application/json",
+  };
+}
+
+async function fetchFifaPlayerStatistics() {
+  const apiKey = firecrawlApiKey();
+  if (!apiKey) return undefined;
+  const payload = await fetchJson(FIRECRAWL_SCRAPE_URL, {
+    method: "POST",
+    headers: firecrawlHeaders(apiKey),
+    body: JSON.stringify({
+      url: process.env.FIFA_PLAYER_STATS_URL ?? FIFA_TOP_SCORER_STATS_URL,
+      formats: ["markdown"],
+      onlyMainContent: false,
+      maxAge: 0,
+      waitFor: 10000,
+      timeout: 60000,
+      location: { country: "US", languages: ["en-US"] },
+    }),
+  });
+  const data = asRecord(asRecord(payload).data);
+  const markdown = firstString(data.markdown, asRecord(payload).markdown);
+  return { supplementalPlayerStats: parseFifaPlayerStatisticsMarkdown(markdown ?? ""), calls: 1 };
 }
 
 function wc2026Headers() {
@@ -585,6 +707,34 @@ export async function refreshStoredPlayerStats(): Promise<PlayerStatsWrite> {
   let warning: string | undefined;
   let spentCalls = 0;
   const checkedAt = new Date().toISOString();
+
+  if (firecrawlApiKey()) {
+    try {
+      const fifaStats = await fetchFifaPlayerStatistics();
+      if (fifaStats) {
+        spentCalls += fifaStats.calls;
+        if (!fifaStats.supplementalPlayerStats.length) {
+          warning = "FIFA player statistics scrape returned no usable scorer rows.";
+        } else {
+          const stats = rebuildPlayerStats(
+            current.matchStats,
+            { ...current, supplementalPlayerStats: fifaStats.supplementalPlayerStats },
+            checkedAt,
+          );
+          const saved = await writePlayerStats(stored.results, {
+            ...stats,
+            providerCalls: bumpedProviderCalls(current, spentCalls),
+            providerCallTimestamps: bumpedProviderCallTimestamps(current, spentCalls),
+            providerWarning: undefined,
+          });
+          return saved;
+        }
+      }
+    } catch (error) {
+      warning =
+        error instanceof Error ? error.message : "Could not refresh FIFA player statistics";
+    }
+  }
 
   if (process.env.API_FOOTBALL_KEY) {
     try {

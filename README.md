@@ -87,15 +87,17 @@ Provider calls are deliberately throttled for the WC2026 free tier:
 
 `/goals-assists` shows cached leading scorers and assists. Page views never call
 the provider. The nightly cron refreshes match results once, then refreshes
-cached player goal events. When `API_FOOTBALL_KEY` is configured, player stats
-come from API-Football fixture events because those include both scorers and
-assists. If API-Football is not configured or fails, the app falls back to
-WC2026 `/matches/:id/stats` for completed/live matches whose player stats are
-missing or stale; that fallback currently includes scorers but not assists.
+cached player goal events. When `FIRECRAWL_API_KEY` is configured, player stats
+come from FIFA's official player statistics page via Firecrawl because that
+table includes both goals and assists. If FIFA/Firecrawl is not configured or
+fails, the app tries API-Football fixture events, then falls back to WC2026
+`/matches/:id/stats` for completed/live matches whose player stats are missing
+or stale; that final fallback currently includes scorers but not assists.
 
 ```text
 /api/cron/update-goals-assists
 ```
 
-The default player-stat cap is 120 calls/day. API-Football fixture details are
-batched in groups of 20, so a full 104-match refresh is about 7 player-stat calls.
+The default player-stat cap is 120 calls/day. A FIFA/Firecrawl refresh costs 1
+tracked player-stat call. API-Football is kept as an event-data fallback, but
+its free plan may not include World Cup 2026 data or batched fixture lookups.

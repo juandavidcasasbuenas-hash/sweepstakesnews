@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   normalizeApiFootballPlayerStats,
   normalizeMatchPlayerStats,
+  parseFifaPlayerStatisticsMarkdown,
   playerStatsCallsLast24Hours,
   playerStatsRefreshTargets,
   rebuildPlayerStats,
@@ -164,6 +165,90 @@ test("ranks one-goal scorers with assists ahead of one-goal scorers without assi
   assert.equal(stats.scorers[0].goals, 1);
   assert.equal(stats.scorers[0].assists, 1);
   assert.equal(top10.includes("No Assist 10"), false);
+});
+
+test("uses FIFA aggregate assists to break scorer table ties", () => {
+  const matchStats = Object.fromEntries(
+    Array.from({ length: 10 }, (_, index) => {
+      const fixtureId = index + 1;
+      return [
+        fixtureId,
+        {
+          fixtureId,
+          checkedAt: "2026-06-18T12:00:00.000Z",
+          events: [
+            {
+              fixtureId,
+              team: "Team",
+              scorer: `No Assist ${String(fixtureId).padStart(2, "0")}`,
+            },
+          ],
+        },
+      ];
+    }),
+  );
+
+  const stats = rebuildPlayerStats(
+    {
+      ...matchStats,
+      11: {
+        fixtureId: 11,
+        checkedAt: "2026-06-18T12:00:00.000Z",
+        events: [
+          {
+            fixtureId: 11,
+            team: "SWE",
+            scorer: "Alexander Isak",
+          },
+        ],
+      },
+    },
+    {
+      scorers: [],
+      assists: [],
+      matchStats: {},
+      updatedAt: "2026-06-18T12:00:00.000Z",
+      supplementalPlayerStats: [
+        {
+          player: "Alexander Isak",
+          team: "SWE",
+          goals: 1,
+          assists: 3,
+        },
+      ],
+    },
+    "2026-06-18T12:00:00.000Z",
+  );
+
+  const top10 = stats.scorers.slice(0, 10).map((row) => row.player);
+
+  assert.equal(stats.scorers[0].player, "Alexander Isak");
+  assert.equal(stats.scorers[0].assists, 3);
+  assert.equal(top10.includes("No Assist 10"), false);
+});
+
+test("parses FIFA player statistics markdown from Firecrawl", () => {
+  const stats = parseFifaPlayerStatisticsMarkdown(`
+| Rank | Player | Goals | Assists | Minutes Played |
+| --- | --- | --- | --- | --- |
+| 1 | ![](https://digitalhub.fifa.com/transform/example/UNDAV-Deniz_484851?quality=75)<br>Deniz Undav<br>![GER](https://api.fifa.com/api/v3/picture/flags-sq-3/GER)<br>GERGER<br>FW | 3 | 2 | 69 |
+| 21 | ![](https://digitalhub.fifa.com/transform/example/ISAK-Alexander_430150?quality=75)<br>Alexander Isak<br>![SWE](https://api.fifa.com/api/v3/picture/flags-sq-3/SWE)<br>SWESWE<br>FW | 1 | 3 | 194 |
+  `);
+
+  assert.deepEqual(stats, [
+    {
+      player: "Deniz Undav",
+      team: "GER",
+      goals: 3,
+      assists: 2,
+    },
+    {
+      player: "Alexander Isak",
+      team: "SWE",
+      goals: 1,
+      assists: 3,
+    },
+  ]);
 });
 
 test("normalizes API-Football fixture events with assists when provider teams are reversed", () => {
