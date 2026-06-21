@@ -24,10 +24,10 @@ let inFlightProviderCall: Promise<TournamentResults> | null = null;
 const MIN_PROVIDER_INTERVAL_MS = 15_000;
 // Schedule-aware polling: refresh often while matches are in play, rarely
 // otherwise, and never exceed the provider's daily request allowance.
-const HOT_TTL_FLOOR_SECONDS = 720;
+const HOT_TTL_FLOOR_SECONDS = 120;
 const WARM_TTL_SECONDS = 3_600;
 const FORCE_REFRESH_MIN_MS = 120_000;
-const DEFAULT_DAILY_CALL_BUDGET = 90;
+const DEFAULT_DAILY_CALL_BUDGET = 450;
 const GROUP_MATCH_WINDOW_MS = 3.5 * 60 * 60 * 1000;
 const KNOCKOUT_MATCH_WINDOW_MS = 4 * 60 * 60 * 1000;
 const WC2026_API_BASE = "https://api.wc2026api.com";

@@ -32,7 +32,7 @@ SUPABASE_SERVICE_ROLE_KEY=
 CRON_SECRET=
 ADMIN_RESULTS_KEY=
 WC2026_API_KEY=
-RESULTS_CACHE_SECONDS=90
+RESULTS_CACHE_SECONDS=120
 PLAYER_STATS_DAILY_CALL_BUDGET=120
 ```
 
@@ -78,10 +78,11 @@ Provider calls are deliberately throttled for the WC2026 free tier:
 
 - The app will not call the real results provider before the first kick-off.
 - It only refreshes near match days during the tournament.
-- Provider checks are cached in Supabase for at least 30 minutes, even if the
+- Provider checks are cached in Supabase for at least 2 minutes during live match
+  windows and at least 60 minutes outside them, even if the
   provider returns no completed matches or a rate-limit warning.
-- `RESULTS_CACHE_SECONDS` can be set higher, but values below 1800 seconds are
-  clamped to 1800 to protect the API key.
+- `RESULTS_CACHE_SECONDS` can be set higher, but values below 120 seconds are
+  clamped to 120 during live match windows to protect the API key.
 
 ## Goals and assists syncing
 

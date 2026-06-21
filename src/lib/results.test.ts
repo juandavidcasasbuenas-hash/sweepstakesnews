@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeGenericJson, providerCallsLast24Hours } from "@/lib/results";
+import {
+  normalizeGenericJson,
+  providerCallBudget,
+  providerCallsLast24Hours,
+  resultsPollTtlSeconds,
+} from "@/lib/results";
 
 const completedResults = [
   { id: 2, match_number: 1, home_team: "Mexico", away_team: "South Africa", home_score: 2, away_score: 0 },
@@ -116,5 +121,24 @@ test("counts result provider calls in the last 24 hours", () => {
       new Date("2026-06-17T12:00:00.000Z"),
     ),
     2,
+  );
+});
+
+test("uses a two-minute live result cache floor and hourly warm cache", () => {
+  assert.equal(resultsPollTtlSeconds("hot"), 120);
+  assert.equal(resultsPollTtlSeconds("warm"), 3600);
+});
+
+test("defaults result provider budget close to the 500-call API limit", () => {
+  assert.deepEqual(
+    providerCallBudget(
+      {
+        matches: {},
+        bonuses: { topScorer: "", goldenBall: "", mostGoalsTeam: "" },
+        updatedAt: "2026-06-17T00:00:00.000Z",
+      },
+      new Date("2026-06-17T12:00:00.000Z"),
+    ),
+    { cap: 450, count: 0, exhausted: false },
   );
 });
