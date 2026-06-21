@@ -65,6 +65,10 @@ type RefreshGoalsAssistsPayload = {
   error?: string;
 };
 
+type RefreshResultsPayload = ResultsPayload & {
+  warning?: string;
+};
+
 type AdminTab = "entries" | "results" | "health";
 
 type ResultDraft = {
@@ -205,6 +209,7 @@ export default function AdminDashboard() {
   const [resultsLoading, setResultsLoading] = useState(true);
   const [health, setHealth] = useState<HealthPayload | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
+  const [scoresRefreshing, setScoresRefreshing] = useState(false);
   const [statsRefreshing, setStatsRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -373,6 +378,30 @@ export default function AdminDashboard() {
       setStatus(error instanceof Error ? error.message : "Could not refresh goals and assists");
     } finally {
       setStatsRefreshing(false);
+    }
+  }
+
+  async function refreshScores() {
+    setScoresRefreshing(true);
+    setStatus("");
+    try {
+      const payload = (await adminFetch("/api/admin/refresh-results", {
+        method: "POST",
+      })) as RefreshResultsPayload;
+      const nextResults = payload.results ?? results;
+      const resultCount = Object.keys(nextResults.matches ?? {}).length;
+      setResults(nextResults);
+      setBonusDraft(nextResults.bonuses ?? emptyBonuses());
+      const message =
+        payload.warning ??
+        `Live scores refreshed. ${resultCount} saved result${
+          resultCount === 1 ? "" : "s"
+        } loaded.`;
+      setStatus(message);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not refresh scores");
+    } finally {
+      setScoresRefreshing(false);
     }
   }
 
@@ -856,10 +885,18 @@ export default function AdminDashboard() {
               <button
                 className="secondary-button icon-button compact-btn"
                 onClick={() => void loadResults()}
-                disabled={resultsLoading}
+                disabled={resultsLoading || scoresRefreshing}
               >
                 <RefreshCw size={14} />
-                Refresh
+                Reload saved
+              </button>
+              <button
+                className="primary-button icon-button compact-btn"
+                onClick={() => void refreshScores()}
+                disabled={scoresRefreshing || resultsLoading}
+              >
+                <RefreshCw size={14} />
+                {scoresRefreshing ? "Fetching..." : "Fetch live scores"}
               </button>
             </div>
 
@@ -877,9 +914,13 @@ export default function AdminDashboard() {
               </button>
             </div>
 
-            {status ? (
+            {status || resultsLoading || scoresRefreshing ? (
               <p className="admin-status">
-                {resultsLoading && activeTab === "results" ? "Loading results..." : status}
+                {resultsLoading && activeTab === "results"
+                  ? "Loading results..."
+                  : scoresRefreshing
+                    ? "Fetching live scores..."
+                    : status}
               </p>
             ) : null}
 
@@ -1093,8 +1134,16 @@ export default function AdminDashboard() {
             <div className="admin-toolbar-actions">
               <button
                 className="primary-button icon-button compact-btn"
+                onClick={() => void refreshScores()}
+                disabled={scoresRefreshing || healthLoading || statsRefreshing}
+              >
+                <RefreshCw size={14} />
+                {scoresRefreshing ? "Fetching..." : "Refresh Scores"}
+              </button>
+              <button
+                className="primary-button icon-button compact-btn"
                 onClick={() => void refreshGoalsAssists()}
-                disabled={statsRefreshing || healthLoading}
+                disabled={statsRefreshing || healthLoading || scoresRefreshing}
               >
                 <RefreshCw size={14} />
                 {statsRefreshing ? "Refreshing..." : "Refresh Goals & Assists"}
@@ -1102,7 +1151,7 @@ export default function AdminDashboard() {
               <button
                 className="secondary-button icon-button compact-btn"
                 onClick={() => void loadHealth()}
-                disabled={healthLoading || statsRefreshing}
+                disabled={healthLoading || statsRefreshing || scoresRefreshing}
               >
                 <RefreshCw size={14} />
                 {healthLoading ? "Checking..." : "Run check"}
