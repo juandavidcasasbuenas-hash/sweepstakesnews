@@ -10,6 +10,7 @@ import {
   ClipboardCheck,
   Download,
   Eye,
+  GitBranch,
   ImageDown,
   LockKeyhole,
   Medal,
@@ -34,6 +35,7 @@ import {
   autofillTournament,
   calculateGroupStandings,
   createEmptyPicks,
+  createFreshPicksDraft,
   displayMatchNumber,
   emptyBonuses,
   FIRST_KICK_OFF_ISO,
@@ -46,6 +48,7 @@ import {
 import type {
   BonusPicks,
   MatchPick,
+  ResultMatch,
   ResolvedFixture,
   Submission,
   Tournament,
@@ -69,7 +72,7 @@ const blankResults: TournamentResults = {
 };
 const liveResultsPollMs = 60_000;
 
-type Tab = "predict" | "matchday" | "leaderboard" | "rules" | "titlerace" | "goals" | "insights";
+type Tab = "predict" | "matchday" | "currentRO32" | "leaderboard" | "rules" | "titlerace" | "goals" | "insights";
 type EntryViewTab = "summary" | "groups" | "bracket";
 type PredictionStep = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "round32" | "round16" | "quarter" | "semi" | "thirdPlace" | "final";
 type ResultsPayload = {
@@ -85,6 +88,8 @@ type SubmissionsPayload = {
 };
 type SweepstakesAppProps = {
   tournament?: Tournament;
+  mode?: "standard" | "fresh";
+  sourceSubmissionId?: string;
 };
 
 const defaultTournament: Tournament = {
@@ -382,6 +387,30 @@ function predictedWinner(fixture: ResolvedFixture, pick?: MatchPick) {
   if (pick.home > pick.away) return fixture.resolvedTeam1;
   if (pick.away > pick.home) return fixture.resolvedTeam2;
   return pick.winner || fixture.resolvedTeam1;
+}
+
+function isPlaceholderTeam(team: string) {
+  return !team || /^([WL]\d+|[123][A-L/]+)$/i.test(team.replace(/\s/g, ""));
+}
+
+function bracketTeamLabel(team: string) {
+  return isPlaceholderTeam(team) ? "TBC" : team;
+}
+
+function bracketScoreValue(value: number | "" | undefined, mode: "prediction" | "current") {
+  if (typeof value === "number") return value;
+  return mode === "current" ? "·" : "?";
+}
+
+function bracketWinner(
+  fixture: ResolvedFixture,
+  pick: Pick<MatchPick, "home" | "away" | "winner"> | undefined,
+  mode: "prediction" | "current",
+) {
+  if (!pick || typeof pick.home !== "number" || typeof pick.away !== "number") return "";
+  if (pick.home > pick.away) return fixture.resolvedTeam1;
+  if (pick.away > pick.home) return fixture.resolvedTeam2;
+  return pick.winner || (mode === "prediction" ? fixture.resolvedTeam1 : "");
 }
 
 function ScoreTeamLabel({
@@ -1413,12 +1442,16 @@ function FixtureCard({
   fixture,
   pick,
   updatePick,
+  lockedWinner,
 }: {
   fixture: ResolvedFixture;
   pick: MatchPick;
   updatePick: (fixtureId: number, patch: Partial<MatchPick>) => void;
+  lockedWinner?: string;
 }) {
+  const locked = Boolean(lockedWinner);
   const updateScore = (side: "home" | "away", value: string) => {
+    if (locked) return;
     const nextValue = normalizeNumber(value);
     const nextHome = side === "home" ? nextValue : pick.home;
     const nextAway = side === "away" ? nextValue : pick.away;
@@ -1440,8 +1473,11 @@ function FixtureCard({
     pick.home === pick.away;
 
   return (
-    <article className="fixture-card">
-      <span className="match-chip">Match {displayMatchNumber(fixture)}</span>
+    <article className={`fixture-card${locked ? " fixture-card-locked" : ""}`}>
+      <span className="match-chip">
+        {locked ? <LockKeyhole size={12} /> : null}
+        Match {displayMatchNumber(fixture)}
+      </span>
       <div className="fixture-home">
         <TeamLabelResponsive team={fixture.resolvedTeam1} />
       </div>
@@ -1455,6 +1491,7 @@ function FixtureCard({
           value={pick.home}
           onChange={(event) => updateScore("home", event.target.value)}
           onFocus={(event) => event.currentTarget.select()}
+          disabled={locked}
         />
         <span className="vs-sep">–</span>
         <input
@@ -1466,6 +1503,7 @@ function FixtureCard({
           value={pick.away}
           onChange={(event) => updateScore("away", event.target.value)}
           onFocus={(event) => event.currentTarget.select()}
+          disabled={locked}
         />
       </div>
       <div className="fixture-away">
@@ -1481,6 +1519,7 @@ function FixtureCard({
               : ""
           }
           onChange={(event) => updatePick(fixture.id, { winner: event.target.value })}
+          disabled={locked}
           required
         >
           <option value="" disabled>Penalty winner?</option>
@@ -1488,6 +1527,9 @@ function FixtureCard({
           <option value={fixture.resolvedTeam2}>{fixture.resolvedTeam2}</option>
         </select>
       )}
+      {lockedWinner ? (
+        <span className="locked-fixture-note">Inherited path: {lockedWinner}</span>
+      ) : null}
     </article>
   );
 }
@@ -2062,14 +2104,16 @@ const BRACKET_COLS = [
 function Bracket({
   fixtures: resolved,
   picks,
+  mode = "prediction",
 }: {
   fixtures: ResolvedFixture[];
-  picks: Record<number, MatchPick>;
+  picks: Record<number, MatchPick | ResultMatch | undefined>;
+  mode?: "prediction" | "current";
 }) {
   const byId = new Map(resolved.map((f) => [f.id, f]));
 
   return (
-    <div className="bk">
+    <div className={`bk${mode === "current" ? " bk-current" : ""}`}>
       {BRACKET_COLS.map(({ stage, label }, colIdx) => {
         const ids = BRACKET_ORDER[stage] as readonly number[];
         const slotH = Math.pow(2, colIdx) * BRACKET_SLOT_PX;
@@ -2090,22 +2134,33 @@ function Bracket({
                   const fx = byId.get(id);
                   if (!fx) return null;
                   const pick = picks[fx.id];
-                  const winner = predictedWinner(fx, pick);
+                  const winner = bracketWinner(fx, pick, mode);
+                  const homeLabel = bracketTeamLabel(fx.resolvedTeam1);
+                  const awayLabel = bracketTeamLabel(fx.resolvedTeam2);
                   return (
                     <div key={id} className="bk-slot" style={{ height: slotH }}>
                       <article className="bk-card">
+                        {mode === "current" ? (
+                          <small className="bk-match-meta">
+                            Match {displayMatchNumber(fx)} · {formatFixtureDate(fx)}
+                          </small>
+                        ) : null}
                         <div className={`bk-team-line${winner === fx.resolvedTeam1 ? " bk-team-winner" : ""}`}>
-                          <TeamLabel team={fx.resolvedTeam1} />
-                          <b>{pick?.home === "" || pick?.home === undefined ? "?" : pick.home}</b>
+                          <TeamLabel team={homeLabel} />
+                          <b>{bracketScoreValue(pick?.home, mode)}</b>
                         </div>
                         <div className="bk-hr" />
                         <div className={`bk-team-line${winner === fx.resolvedTeam2 ? " bk-team-winner" : ""}`}>
-                          <TeamLabel team={fx.resolvedTeam2} />
-                          <b>{pick?.away === "" || pick?.away === undefined ? "?" : pick.away}</b>
+                          <TeamLabel team={awayLabel} />
+                          <b>{bracketScoreValue(pick?.away, mode)}</b>
                         </div>
                         {typeof pick?.home === "number" && pick.home === pick.away ? (
                           <small className="bk-penalty-note">
-                            {pick.winner ? `${pick.winner} on pens` : "Penalty winner needed"}
+                            {pick.winner
+                              ? `${pick.winner} on pens`
+                              : mode === "current"
+                                ? "Level after regulation"
+                                : "Penalty winner needed"}
                           </small>
                         ) : null}
                       </article>
@@ -2121,6 +2176,132 @@ function Bracket({
   );
 }
 
+function CurrentRound32({
+  results,
+}: {
+  results: TournamentResults;
+}) {
+  const currentResolved = useMemo(() => resolveFixtures(results.matches), [results.matches]);
+  const currentQualified = useMemo(() => qualifiedTeams(results.matches), [results.matches]);
+  const round32Fixtures = useMemo(
+    () =>
+      BRACKET_ORDER.round32
+        .map((id) => currentResolved.find((fixture) => fixture.id === id))
+        .filter(Boolean) as ResolvedFixture[],
+    [currentResolved],
+  );
+  const knockoutResults = Object.values(results.matches ?? {}).filter((match) => {
+    const fixture = currentResolved.find((item) => item.id === match.fixtureId);
+    return fixture && fixture.stage !== "group";
+  });
+  const liveKnockouts = knockoutResults.filter((match) => match.status === "live").length;
+  const completedKnockouts = knockoutResults.filter((match) => match.status === "completed" || match.winner).length;
+  const projectedRound32Teams = new Set(
+    round32Fixtures
+      .flatMap((fixture) => [fixture.resolvedTeam1, fixture.resolvedTeam2])
+      .filter((team) => !isPlaceholderTeam(team)),
+  );
+  const nextFixture =
+    round32Fixtures.find((fixture) => !results.matches[fixture.id]) ??
+    currentResolved.find((fixture) => fixture.stage !== "group" && !results.matches[fixture.id]);
+  const updatedAt = new Date(results.updatedAt);
+  const updatedLabel =
+    Number.isFinite(updatedAt.getTime()) && updatedAt.getTime() > 0
+      ? updatedAt.toLocaleString(matchDayLocale, {
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          month: "short",
+          timeZone: matchDayTimeZone,
+        })
+      : "Waiting for live results";
+
+  return (
+    <section className="panel current-ro32-panel" aria-label="Current Round of 32 bracket">
+      <div className="current-ro32-head">
+        <div className="section-title">
+          <span className="title-icon"><GitBranch size={18} /></span>
+          <div>
+            <span className="eyebrow">Live knockout picture</span>
+            <h2>Current RO32</h2>
+          </div>
+        </div>
+        <div className="current-ro32-updated">
+          <span>Updated</span>
+          <strong>{updatedLabel}</strong>
+        </div>
+      </div>
+
+      <div className="current-ro32-metrics" aria-label="Current knockout summary">
+        <article>
+          <span>RO32 slots shown</span>
+          <strong>{projectedRound32Teams.size}</strong>
+          <small>current projection</small>
+        </article>
+        <article>
+          <span>KO results in</span>
+          <strong>{completedKnockouts}</strong>
+          <small>{liveKnockouts ? `${liveKnockouts} live now` : "paths update as winners land"}</small>
+        </article>
+        <article>
+          <span>Next branch</span>
+          <strong>{nextFixture ? `M${displayMatchNumber(nextFixture)}` : "Final"}</strong>
+          <small>{nextFixture ? `${formatFixtureDate(nextFixture)} · ${nextFixture.venue}` : "Bracket complete"}</small>
+        </article>
+      </div>
+
+      <div className="current-ro32-strip">
+        <span className="third-place-label">Best 3rd-placed teams currently in</span>
+        {currentQualified.bestThirds.length ? (
+          currentQualified.bestThirds.map((team) => (
+            <TeamPill key={`current-third-${team.group}-${team.team}`} team={team.team}>
+              3{team.group} · {team.team}
+            </TeamPill>
+          ))
+        ) : (
+          <TeamPill>Awaiting group tables</TeamPill>
+        )}
+      </div>
+
+      <div className="current-ro32-bracket">
+        <div className="current-ro32-bracket-topline">
+          <div>
+            <span className="eyebrow">Path to the final</span>
+            <h3>Knockout branches</h3>
+          </div>
+          <p>Built from the current results feed and live group standings.</p>
+        </div>
+        <Bracket fixtures={currentResolved} picks={results.matches} mode="current" />
+      </div>
+
+      <div className="current-ro32-fixtures" aria-label="Current Round of 32 fixtures">
+        {round32Fixtures.map((fixture) => {
+          const result = results.matches[fixture.id];
+          const homeLabel = bracketTeamLabel(fixture.resolvedTeam1);
+          const awayLabel = bracketTeamLabel(fixture.resolvedTeam2);
+          return (
+            <article className="current-ro32-fixture" key={fixture.id}>
+              <div className="fixture-meta">
+                <span className="match-chip">Match {displayMatchNumber(fixture)}</span>
+                <span>{formatFixtureDate(fixture)}</span>
+                <span className={`result-pill${result ? " result-pill-in" : ""}`}>
+                  {result ? resultOutcome(result) : "Projected"}
+                </span>
+              </div>
+              <div className="current-ro32-fixture-line">
+                <TeamLabel team={homeLabel} />
+                <b>{result ? `${result.home} - ${result.away}` : "vs"}</b>
+                <TeamLabel team={awayLabel} />
+              </div>
+              <small>{fixture.venue}</small>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function Review({
   name,
   setName,
@@ -2129,6 +2310,7 @@ function Review({
   picks,
   onBack,
   onSubmit,
+  readOnlyBonuses = false,
 }: {
   name: string;
   setName: (value: string) => void;
@@ -2137,6 +2319,7 @@ function Review({
   picks: Record<number, MatchPick>;
   onBack: () => void;
   onSubmit: () => void;
+  readOnlyBonuses?: boolean;
 }) {
   const resolved = resolveFixtures(picks);
   const final = resolved.find((fixture) => fixture.id === 104);
@@ -2174,6 +2357,7 @@ function Review({
             value={bonuses.topScorer}
             onChange={(event) => setBonuses({ ...bonuses, topScorer: event.target.value })}
             placeholder="Player name"
+            readOnly={readOnlyBonuses}
           />
         </label>
         <label>
@@ -2183,6 +2367,7 @@ function Review({
             value={bonuses.goldenBall}
             onChange={(event) => setBonuses({ ...bonuses, goldenBall: event.target.value })}
             placeholder="Player name"
+            readOnly={readOnlyBonuses}
           />
         </label>
         <label>
@@ -2192,6 +2377,7 @@ function Review({
             value={bonuses.mostGoalsTeam}
             onChange={(event) => setBonuses({ ...bonuses, mostGoalsTeam: event.target.value })}
             placeholder="Team"
+            readOnly={readOnlyBonuses}
           />
         </label>
       </div>
@@ -2266,12 +2452,19 @@ function EntrySubmittedPanel({
   );
 }
 
-export default function SweepstakesApp({ tournament = defaultTournament }: SweepstakesAppProps) {
+export default function SweepstakesApp({
+  tournament = defaultTournament,
+  mode = "standard",
+  sourceSubmissionId,
+}: SweepstakesAppProps) {
+  const freshMode = mode === "fresh";
   const isDefaultTournament = tournament.slug === defaultTournament.slug;
   const submissionsUrl = isDefaultTournament
     ? "/api/submissions"
     : `/api/submissions?tournament=${encodeURIComponent(tournament.slug)}`;
-  const tournamentStorageSuffix = isDefaultTournament ? "" : `:${tournament.slug}`;
+  const tournamentStorageSuffix = `${isDefaultTournament ? "" : `:${tournament.slug}`}${
+    freshMode ? `:fresh:${sourceSubmissionId ?? "missing"}` : ""
+  }`;
   const scopedSubmissionsKey = `${localSubmissionsKey}${tournamentStorageSuffix}`;
   const scopedResultsKey = `${localResultsKey}${tournamentStorageSuffix}`;
   const scopedSubmittedEntryKey = `${localSubmittedEntryKey}${tournamentStorageSuffix}`;
@@ -2281,7 +2474,7 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
   const heroImage = isDefaultTournament ? "/hero-team-full.jpg" : "/tournament-generic-banner.png";
   const brandName = tournament.name;
   const shareEnabled = !isDefaultTournament;
-  const [tab, setTab] = useState<Tab>("matchday");
+  const [tab, setTab] = useState<Tab>(freshMode ? "predict" : "matchday");
   const [menuOpen, setMenuOpen] = useState(false);
   const [name, setName] = useState("");
   const [picks, setPicks] = useState<Record<number, MatchPick>>(createEmptyPicks);
@@ -2291,12 +2484,15 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
   const [reviewing, setReviewing] = useState(false);
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
   const [entryViewTab, setEntryViewTab] = useState<EntryViewTab>("summary");
-  const [activeStep, setActiveStep] = useState<PredictionStep>("A");
+  const [activeStep, setActiveStep] = useState<PredictionStep>(freshMode ? "round32" : "A");
   const [submittedEntryId, setSubmittedEntryId] = useState<string | null>(null);
   const [exportNotice, setExportNotice] = useState("");
   const [hydrated, setHydrated] = useState(false);
   const [resultsSyncing, setResultsSyncing] = useState(false);
   const [resultsStatus, setResultsStatus] = useState("");
+  const [freshSeededSourceId, setFreshSeededSourceId] = useState<string | null>(null);
+  const [freshSetupStatus, setFreshSetupStatus] = useState("");
+  const [freshLockedWinners, setFreshLockedWinners] = useState<Record<number, string>>({});
   const [selectedMatchDate, setSelectedMatchDate] = useState(() =>
     defaultMatchDate(resolveFixtures(createEmptyPicks())),
   );
@@ -2416,7 +2612,7 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
   ]);
 
   useEffect(() => {
-    if (!hydrated || (tab !== "leaderboard" && tab !== "matchday")) return;
+    if (!hydrated || (tab !== "leaderboard" && tab !== "matchday" && tab !== "currentRO32")) return;
     const firstRun = window.setTimeout(() => {
       void loadLiveResults();
     }, 0);
@@ -2456,11 +2652,20 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
   }, [hydrated, scopedSubmittedEntryKey, submittedEntryId]);
 
   const resolvedFixtures = useMemo(() => resolveFixtures(picks), [picks]);
+  const sourceSubmission = useMemo(
+    () =>
+      sourceSubmissionId
+        ? submissions.find((submission) => submission.id === sourceSubmissionId) ?? null
+        : null,
+    [sourceSubmissionId, submissions],
+  );
   const ownSubmission = useMemo(
     () =>
       submissions.find((submission) => submission.id === submittedEntryId) ??
-      (submittedEntryId ? null : submissions.find((submission) => submission.name === name.trim()) ?? null),
-    [name, submissions, submittedEntryId],
+      (submittedEntryId || freshMode
+        ? null
+        : submissions.find((submission) => submission.name === name.trim()) ?? null),
+    [freshMode, name, submissions, submittedEntryId],
   );
   const effectiveSelectedSubmissionId = useMemo(() => {
     if (selectedSubmissionId && submissions.some((submission) => submission.id === selectedSubmissionId)) {
@@ -2469,12 +2674,57 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
     return ownSubmission?.id ?? submissions[0]?.id ?? null;
   }, [ownSubmission?.id, selectedSubmissionId, submissions]);
   const hasSubmittedEntry = Boolean(ownSubmission);
-  const locked = isLocked();
+  const locked = !freshMode && isLocked();
+  const freshDraftPreview = useMemo(() => {
+    if (!freshMode || !sourceSubmission) return null;
+    return createFreshPicksDraft(sourceSubmission, results);
+  }, [freshMode, results, sourceSubmission]);
+  const freshMissingFinalists =
+    freshDraftPreview?.ready ? freshDraftPreview.missingFinalists : [];
+  const freshBlocked =
+    freshMode &&
+    (!sourceSubmissionId ||
+      !sourceSubmission ||
+      freshSeededSourceId !== sourceSubmission.id ||
+      freshMissingFinalists.length > 0);
+
+  useEffect(() => {
+    if (!freshMode || !sourceSubmissionId) return;
+
+    queueMicrotask(() => {
+      if (!sourceSubmission) {
+        setFreshSetupStatus("Waiting for the original entry linked by admin.");
+        return;
+      }
+      if (freshSeededSourceId === sourceSubmission.id) return;
+
+      const draft = createFreshPicksDraft(sourceSubmission, results);
+      if (!draft.ready) {
+        setFreshSetupStatus(draft.reason);
+        return;
+      }
+
+      setName(sourceSubmission.name);
+      setPicks(draft.picks);
+      setBonuses(draft.bonuses);
+      setFreshLockedWinners(draft.lockedWinners);
+      setFreshSetupStatus(
+        draft.missingFinalists.length
+          ? `Cannot keep original finalist path for ${draft.missingFinalists.join(", ")}.`
+          : "Fresh picks loaded from the official Round of 32 bracket.",
+      );
+      setActiveStep("round32");
+      setReviewing(false);
+      setFreshSeededSourceId(sourceSubmission.id);
+    });
+  }, [freshMode, freshSeededSourceId, results, sourceSubmission, sourceSubmissionId]);
+
   const totalIncompleteRequiredPicks = incompleteRequiredPickCount(resolvedFixtures, picks);
   const totalMissingPenaltyWinners = missingPenaltyWinnerCount(resolvedFixtures, picks);
   const canReview =
     !hasSubmittedEntry &&
     !locked &&
+    !freshBlocked &&
     !!name.trim() &&
     totalIncompleteRequiredPicks === 0 &&
     totalMissingPenaltyWinners === 0;
@@ -2486,6 +2736,7 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
     totalMissingPenaltyWinners === 0;
 
   function updatePick(fixtureId: number, patch: Partial<MatchPick>) {
+    if (freshLockedWinners[fixtureId]) return;
     setPicks((current) => ({
       ...current,
       [fixtureId]: { ...current[fixtureId], ...patch },
@@ -2496,6 +2747,7 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
     const resolvedSubmissionFixtures = resolveFixtures(picks);
     if (
       !name.trim() ||
+      freshBlocked ||
       incompleteRequiredPickCount(resolvedSubmissionFixtures, picks) > 0 ||
       missingPenaltyWinnerCount(resolvedSubmissionFixtures, picks) > 0 ||
       !bonuses.topScorer.trim() ||
@@ -2513,8 +2765,27 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
       createdAt: new Date().toISOString(),
       picks: submittedPicks,
       bonuses: submittedBonuses,
+      freshPicks:
+        freshMode && sourceSubmission
+          ? {
+              sourceSubmissionId: sourceSubmission.id,
+              sourceName: sourceSubmission.name,
+              sourceCreatedAt: sourceSubmission.createdAt,
+              basePicks: JSON.parse(JSON.stringify(
+                sourceSubmission.freshPicks?.basePicks ?? sourceSubmission.picks,
+              )) as Record<number, MatchPick>,
+              lockedWinners: { ...freshLockedWinners },
+              missingFinalists: freshMissingFinalists,
+              createdFromResultsAt: results.updatedAt,
+            }
+          : undefined,
     };
-    const next = [submission, ...submissions.filter((item) => item.name !== submission.name)];
+    const next = [
+      submission,
+      ...submissions.filter((item) =>
+        freshMode ? item.id !== submission.id : item.name !== submission.name,
+      ),
+    ];
     setSubmissions(next);
     setSubmittedEntryId(submission.id);
     setReviewing(false);
@@ -2537,18 +2808,20 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
 
   const predictionSteps = useMemo(
     () => [
-      ...groupLetters.map((group) => ({
-        id: group,
-        label: `Group ${group}`,
-        short: group,
-        kind: "group" as const,
-      })),
+      ...(freshMode
+        ? []
+        : groupLetters.map((group) => ({
+            id: group,
+            label: `Group ${group}`,
+            short: group,
+            kind: "group" as const,
+          }))),
       ...knockoutPredictionSteps.map((step) => ({
         ...step,
         kind: "knockout" as const,
       })),
     ],
-    [],
+    [freshMode],
   );
   const activeStepIndex = predictionSteps.findIndex((step) => step.id === activeStep);
   const activeStepMeta = predictionSteps[activeStepIndex] ?? predictionSteps[0];
@@ -2572,9 +2845,14 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
   }, [activeStepMeta]);
   const navItems: Array<{ key: Tab; label: string; icon: ReactNode }> = [
     ...(!hasSubmittedEntry
-      ? [{ key: "predict" as const, label: "Predict matches", icon: <Sparkles size={18} /> }]
+      ? [{
+          key: "predict" as const,
+          label: freshMode ? "Fresh picks" : "Predict matches",
+          icon: <Sparkles size={18} />,
+        }]
       : []),
     { key: "matchday", label: "Match days", icon: <CalendarDays size={18} /> },
+    { key: "currentRO32", label: "Current RO32", icon: <GitBranch size={18} /> },
     { key: "leaderboard", label: "Leaderboard", icon: <Trophy size={18} /> },
     { key: "rules", label: "Scoring", icon: <CheckCircle2 size={18} /> },
     { key: "titlerace", label: "Title race", icon: <CarFront size={18} /> },
@@ -2584,13 +2862,16 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
 
   const heroData: Record<Tab, { h1: string }> = {
     predict: {
-      h1: hasSubmittedEntry ? "Your\nPicks" : "Predict\nAll 104",
+      h1: freshMode ? "Fresh\nPicks" : hasSubmittedEntry ? "Your\nPicks" : "Predict\nAll 104",
     },
     leaderboard: {
       h1: "The\nTable",
     },
     matchday: {
       h1: "Match\nDays",
+    },
+    currentRO32: {
+      h1: "Current\nRO32",
     },
     rules: {
       h1: "Scoring\nSystem",
@@ -2625,6 +2906,15 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
         Object.entries(filled).filter(([fixtureId]) => ids.has(Number(fixtureId))),
       ),
     }));
+  }
+
+  function resetCurrentDraft() {
+    if (freshMode) {
+      setFreshSeededSourceId(null);
+      setFreshLockedWinners({});
+      return;
+    }
+    setPicks(createEmptyPicks());
   }
 
   async function copyTournamentLink() {
@@ -2688,8 +2978,8 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
           ))}
         </nav>
         <div className="rail-note">
-          <span>Entries close</span>
-          <strong>Before kick-off · 11 Jun 2026</strong>
+          <span>{freshMode ? "Fresh picks" : "Entries close"}</span>
+          <strong>{freshMode ? "Round of 32 reset" : "Before kick-off · 11 Jun 2026"}</strong>
           {shareEnabled ? (
             <button className="rail-share-button" onClick={copyTournamentLink}>
               <ClipboardCheck size={14} />
@@ -2753,11 +3043,28 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
                   picks={picks}
                   onBack={() => setReviewing(false)}
                   onSubmit={submit}
+                  readOnlyBonuses={freshMode}
                 />
               ) : (
                 <section className="panel" key="predict-panel">
                   {/* Entry gateway */}
                   <div className="entry-gateway">
+                    {freshMode ? (
+                      <div className="fresh-picks-banner">
+                        <LockKeyhole size={18} />
+                        <div>
+                          <strong>
+                            {sourceSubmission ? `${sourceSubmission.name}'s fresh picks` : "Fresh picks link"}
+                          </strong>
+                          <span>
+                            {freshSetupStatus ||
+                              (sourceSubmissionId
+                                ? "Original group-stage picks and bonus picks are retained."
+                                : "Open the fresh-picks link sent by admin.")}
+                          </span>
+                        </div>
+                      </div>
+                    ) : null}
                     <div className="gateway-right">
                       <div className="gateway-name-wrap">
                         <input
@@ -2790,25 +3097,29 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
                   {/* Journey rail */}
                   <div className="journey-rail" aria-label="Prediction sections">
                     <div className="journey-track">
-                      {predictionSteps.filter((step) => step.kind === "group").map((step) => {
-                        const stepFixtures = resolvedFixtures.filter(
-                          (f) => f.stage === "group" && f.group === step.id,
-                        );
-                        const done = completedInFixtures(stepFixtures, picks);
-                        const complete = done === stepFixtures.length && stepFixtures.length > 0;
-                        return (
-                          <button
-                            key={step.id}
-                            className={`journey-stop${activeStep === step.id ? " js-active" : ""}${complete ? " js-done" : ""}`}
-                            onClick={() => setActiveStep(step.id)}
-                            aria-pressed={activeStep === step.id}
-                          >
-                            <span className="js-label">{step.short}</span>
-                            <span className="js-count">{complete ? "✓" : `${done}/${stepFixtures.length}`}</span>
-                          </button>
-                        );
-                      })}
-                      <div className="journey-divider" aria-hidden="true" />
+                      {!freshMode ? (
+                        <>
+                          {predictionSteps.filter((step) => step.kind === "group").map((step) => {
+                            const stepFixtures = resolvedFixtures.filter(
+                              (f) => f.stage === "group" && f.group === step.id,
+                            );
+                            const done = completedInFixtures(stepFixtures, picks);
+                            const complete = done === stepFixtures.length && stepFixtures.length > 0;
+                            return (
+                              <button
+                                key={step.id}
+                                className={`journey-stop${activeStep === step.id ? " js-active" : ""}${complete ? " js-done" : ""}`}
+                                onClick={() => setActiveStep(step.id)}
+                                aria-pressed={activeStep === step.id}
+                              >
+                                <span className="js-label">{step.short}</span>
+                                <span className="js-count">{complete ? "✓" : `${done}/${stepFixtures.length}`}</span>
+                              </button>
+                            );
+                          })}
+                          <div className="journey-divider" aria-hidden="true" />
+                        </>
+                      ) : null}
                       {predictionSteps.filter((step) => step.kind === "knockout").map((step) => {
                         const stepFixtures = resolvedFixtures.filter((f) => f.stage === step.id);
                         const done = completedInFixtures(stepFixtures, picks);
@@ -2863,6 +3174,7 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
                           fixture={fixture}
                           pick={picks[fixture.id]}
                           updatePick={updatePick}
+                          lockedWinner={freshLockedWinners[fixture.id]}
                         />
                       ))}
                     </div>
@@ -2889,7 +3201,7 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
                       >
                         <Shuffle size={14} /> Fill all
                       </button>
-                      <button className="ghost-btn" onClick={() => setPicks(createEmptyPicks())}>
+                      <button className="ghost-btn" onClick={resetCurrentDraft}>
                         Reset
                       </button>
                     </div>
@@ -2938,6 +3250,17 @@ export default function SweepstakesApp({ tournament = defaultTournament }: Sweep
                   onDateChange={setSelectedMatchDate}
                   ownSubmissionId={ownSubmission?.id ?? submittedEntryId}
                 />
+              </div>
+            )}
+
+            {tab === "currentRO32" && (
+              <div key="current-ro32-panel" style={{ display: "grid", gap: "1.4rem" }}>
+                {resultsStatus ? (
+                  <p className="export-notice">
+                    {resultsSyncing ? "Refreshing live results..." : resultsStatus}
+                  </p>
+                ) : null}
+                <CurrentRound32 results={results} />
               </div>
             )}
 

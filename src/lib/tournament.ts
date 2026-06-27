@@ -100,7 +100,7 @@ function outcome(home: number, away: number) {
   return "draw";
 }
 
-function winnerFor(team1: string, team2: string, pick?: MatchPick) {
+export function winnerFor(team1: string, team2: string, pick?: MatchPick) {
   if (
     !pick ||
     typeof pick.home !== "number" ||
@@ -352,6 +352,104 @@ export function createEmptyPicks() {
   ) as Record<number, MatchPick>;
 }
 
+function pickFromResult(result: ResultMatch): MatchPick {
+  return {
+    fixtureId: result.fixtureId,
+    home: result.home,
+    away: result.away,
+    winner: result.winner,
+  };
+}
+
+function completedGroupResultPicks(results: TournamentResults) {
+  const groupIds = groupFixtures().map((fixture) => fixture.id);
+  if (!allResultsPresent(results, groupIds)) return null;
+
+  const picks = createEmptyPicks();
+  groupIds.forEach((fixtureId) => {
+    const result = results.matches[fixtureId];
+    if (result) picks[fixtureId] = pickFromResult(result);
+  });
+  return picks;
+}
+
+function applyLockedWinner(
+  picks: Record<number, MatchPick>,
+  fixture: ResolvedFixture,
+  team: string,
+) {
+  const homeWins = fixture.resolvedTeam1 === team;
+  picks[fixture.id] = {
+    fixtureId: fixture.id,
+    home: homeWins ? 1 : 0,
+    away: homeWins ? 0 : 1,
+    winner: undefined,
+  };
+}
+
+function lockTeamPathToFinal(
+  picks: Record<number, MatchPick>,
+  team: string,
+  lockedWinners: Record<number, string>,
+) {
+  const pathStages: Fixture["stage"][] = ["round32", "round16", "quarter", "semi"];
+  for (const stage of pathStages) {
+    const fixture = resolveFixtures(picks).find(
+      (item) =>
+        item.stage === stage &&
+        (item.resolvedTeam1 === team || item.resolvedTeam2 === team),
+    );
+    if (!fixture) return false;
+    if (lockedWinners[fixture.id] && lockedWinners[fixture.id] !== team) return false;
+    applyLockedWinner(picks, fixture, team);
+    lockedWinners[fixture.id] = team;
+  }
+  return true;
+}
+
+export function createFreshPicksDraft(source: Submission, results: TournamentResults) {
+  const picks = completedGroupResultPicks(results);
+  if (!picks) {
+    return {
+      ready: false,
+      reason: "Fresh picks need all group-stage results before the Round of 32 bracket can be seeded.",
+    } as const;
+  }
+
+  const sourceFinal = resolveFixtures(source.picks).find((fixture) => fixture.id === 104);
+  const sourceFinalPick = source.picks[104];
+  const champion = sourceFinal
+    ? winnerFor(sourceFinal.resolvedTeam1, sourceFinal.resolvedTeam2, sourceFinalPick)
+    : "";
+  const runnerUp =
+    sourceFinal && champion
+      ? champion === sourceFinal.resolvedTeam1
+        ? sourceFinal.resolvedTeam2
+        : sourceFinal.resolvedTeam1
+      : "";
+  const finalists = [champion, runnerUp].filter(Boolean);
+  const lockedWinners: Record<number, string> = {};
+  const missingFinalists = finalists.filter(
+    (team) => !lockTeamPathToFinal(picks, team, lockedWinners),
+  );
+
+  const final = resolveFixtures(picks).find((fixture) => fixture.id === 104);
+  if (final && champion && (final.resolvedTeam1 === champion || final.resolvedTeam2 === champion)) {
+    applyLockedWinner(picks, final, champion);
+    lockedWinners[final.id] = champion;
+  } else if (champion) {
+    missingFinalists.push(champion);
+  }
+
+  return {
+    ready: true,
+    picks,
+    bonuses: { ...source.bonuses },
+    lockedWinners,
+    missingFinalists: Array.from(new Set(missingFinalists)),
+  } as const;
+}
+
 function randomGoal(): number {
   const r = Math.random();
   if (r < 0.22) return 0;
@@ -400,6 +498,7 @@ export function scoreSubmission(
   submission: Submission,
   results: TournamentResults,
 ): ScoreBreakdown {
+  const retainedPicks = submission.freshPicks?.basePicks ?? submission.picks;
   const breakdown: ScoreBreakdown = {
     total: 0,
     groupMatches: 0,
@@ -411,7 +510,10 @@ export function scoreSubmission(
   };
 
   for (const fixture of fixtures) {
-    const pick = submission.picks[fixture.id];
+    const pick =
+      fixture.stage === "group"
+        ? retainedPicks[fixture.id]
+        : submission.picks[fixture.id];
     const result = results.matches[fixture.id];
     if (!pick || !result || !scoreComplete(pick)) continue;
     const pHome = Number(pick.home);
@@ -464,7 +566,7 @@ export function scoreSubmission(
     }
   }
 
-  const predictedQualified = qualifiedTeams(submission.picks);
+  const predictedQualified = qualifiedTeams(retainedPicks);
   const groupResultsComplete = allResultsPresent(
     results,
     groupFixtures().map((fixture) => fixture.id),

@@ -4,6 +4,7 @@ import {
   Activity,
   AlertTriangle,
   CheckCircle2,
+  ClipboardCheck,
   Download,
   Eye,
   KeyRound,
@@ -614,6 +615,17 @@ export default function AdminDashboard() {
     });
   }
 
+  async function copyFreshPicksLink(submission: Submission) {
+    const path = `/freshpicks?entry=${encodeURIComponent(submission.id)}`;
+    const link = `${window.location.origin}${path}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setStatus(`Fresh picks link copied for ${submission.name}.`);
+    } catch {
+      setStatus(link);
+    }
+  }
+
   return (
     <main className="admin-page">
       <section className="admin-hero">
@@ -793,14 +805,23 @@ export default function AdminDashboard() {
                   <h2>{selectedEntry.name}</h2>
                   <p>{selectedEntry.id}</p>
                 </div>
-                <button
-                  className="admin-danger-button icon-button compact-btn"
-                  onClick={() => void deleteEntries([selectedEntry.id])}
-                  disabled={saving}
-                >
-                  <Trash2 size={14} />
-                  Delete
-                </button>
+                <div className="admin-detail-actions">
+                  <button
+                    className="secondary-button icon-button compact-btn"
+                    onClick={() => void copyFreshPicksLink(selectedEntry)}
+                  >
+                    <ClipboardCheck size={14} />
+                    Fresh link
+                  </button>
+                  <button
+                    className="admin-danger-button icon-button compact-btn"
+                    onClick={() => void deleteEntries([selectedEntry.id])}
+                    disabled={saving}
+                  >
+                    <Trash2 size={14} />
+                    Delete
+                  </button>
+                </div>
               </div>
 
               <label className="admin-edit-name">

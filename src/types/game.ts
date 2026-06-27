@@ -43,6 +43,15 @@ export type Submission = {
   createdAt: string;
   picks: Record<number, MatchPick>;
   bonuses: BonusPicks;
+  freshPicks?: {
+    sourceSubmissionId: string;
+    sourceName: string;
+    sourceCreatedAt?: string;
+    basePicks: Record<number, MatchPick>;
+    lockedWinners: Record<number, string>;
+    missingFinalists?: string[];
+    createdFromResultsAt?: string;
+  };
 };
 
 export type Tournament = {
