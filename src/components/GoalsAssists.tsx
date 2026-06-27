@@ -263,7 +263,6 @@ export default function GoalsAssists({
                       </span>
                       {predictors.length ? (
                         <span className="ga-predictors" title="Picked as top scorer by">
-                          <span className="ga-predictors-label">Top-scorer pick</span>
                           {predictors.map((name) => (
                             <span key={name} className="ga-pred-pill">{name}</span>
                           ))}
