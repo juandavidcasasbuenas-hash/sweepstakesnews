@@ -2490,7 +2490,8 @@ export default function SweepstakesApp({
   const [hydrated, setHydrated] = useState(false);
   const [resultsSyncing, setResultsSyncing] = useState(false);
   const [resultsStatus, setResultsStatus] = useState("");
-  const [freshSeededSourceId, setFreshSeededSourceId] = useState<string | null>(null);
+  const [freshSeededKey, setFreshSeededKey] = useState<string | null>(null);
+  const [freshUserEdited, setFreshUserEdited] = useState(false);
   const [freshSetupStatus, setFreshSetupStatus] = useState("");
   const [freshLockedWinners, setFreshLockedWinners] = useState<Record<number, string>>({});
   const [selectedMatchDate, setSelectedMatchDate] = useState(() =>
@@ -2679,13 +2680,15 @@ export default function SweepstakesApp({
     if (!freshMode || !sourceSubmission) return null;
     return createFreshPicksDraft(sourceSubmission, results);
   }, [freshMode, results, sourceSubmission]);
+  const freshExpectedSeedKey =
+    freshMode && sourceSubmission ? `${sourceSubmission.id}:${results.updatedAt}` : null;
   const freshMissingFinalists =
     freshDraftPreview?.ready ? freshDraftPreview.missingFinalists : [];
   const freshBlocked =
     freshMode &&
     (!sourceSubmissionId ||
       !sourceSubmission ||
-      freshSeededSourceId !== sourceSubmission.id ||
+      freshSeededKey !== freshExpectedSeedKey ||
       freshMissingFinalists.length > 0);
 
   useEffect(() => {
@@ -2696,7 +2699,7 @@ export default function SweepstakesApp({
         setFreshSetupStatus("Waiting for the original entry linked by admin.");
         return;
       }
-      if (freshSeededSourceId === sourceSubmission.id) return;
+      if (freshSeededKey === freshExpectedSeedKey || freshUserEdited) return;
 
       const draft = createFreshPicksDraft(sourceSubmission, results);
       if (!draft.ready) {
@@ -2715,9 +2718,18 @@ export default function SweepstakesApp({
       );
       setActiveStep("round32");
       setReviewing(false);
-      setFreshSeededSourceId(sourceSubmission.id);
+      setFreshUserEdited(false);
+      setFreshSeededKey(freshExpectedSeedKey);
     });
-  }, [freshMode, freshSeededSourceId, results, sourceSubmission, sourceSubmissionId]);
+  }, [
+    freshExpectedSeedKey,
+    freshMode,
+    freshSeededKey,
+    freshUserEdited,
+    results,
+    sourceSubmission,
+    sourceSubmissionId,
+  ]);
 
   const totalIncompleteRequiredPicks = incompleteRequiredPickCount(resolvedFixtures, picks);
   const totalMissingPenaltyWinners = missingPenaltyWinnerCount(resolvedFixtures, picks);
@@ -2737,6 +2749,7 @@ export default function SweepstakesApp({
 
   function updatePick(fixtureId: number, patch: Partial<MatchPick>) {
     if (freshLockedWinners[fixtureId]) return;
+    if (freshMode) setFreshUserEdited(true);
     setPicks((current) => ({
       ...current,
       [fixtureId]: { ...current[fixtureId], ...patch },
@@ -2906,11 +2919,13 @@ export default function SweepstakesApp({
         Object.entries(filled).filter(([fixtureId]) => ids.has(Number(fixtureId))),
       ),
     }));
+    if (freshMode) setFreshUserEdited(true);
   }
 
   function resetCurrentDraft() {
     if (freshMode) {
-      setFreshSeededSourceId(null);
+      setFreshSeededKey(null);
+      setFreshUserEdited(false);
       setFreshLockedWinners({});
       return;
     }
@@ -3197,7 +3212,10 @@ export default function SweepstakesApp({
                     <div className="footer-util">
                       <button
                         className="secondary-button icon-button compact-btn"
-                        onClick={() => setPicks(autofillTournament(picks))}
+                        onClick={() => {
+                          setPicks(autofillTournament(picks));
+                          if (freshMode) setFreshUserEdited(true);
+                        }}
                       >
                         <Shuffle size={14} /> Fill all
                       </button>
