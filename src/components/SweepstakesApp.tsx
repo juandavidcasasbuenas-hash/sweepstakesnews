@@ -43,6 +43,9 @@ import {
   qualifiedTeams,
   resolveFixtures,
   scoreSubmission,
+  scoreSubmissionReceipt,
+  type ScoreReceipt,
+  type ScoreReceiptCategory,
   scoringRules,
 } from "@/lib/tournament";
 import type {
@@ -1859,7 +1862,7 @@ function EntryExplorer({
     submissions.find((submission) => submission.id === ownSubmissionId) ??
     submissions[0];
   const final = finalSummary(selectedSubmission);
-  const score = scoreSubmission(selectedSubmission, results);
+  const receipt = scoreSubmissionReceipt(selectedSubmission, results);
   const resolved = resolveFixtures(selectedSubmission.picks);
   const qualified = qualifiedTeams(selectedSubmission.picks);
   const isOwn = selectedSubmission.id === ownSubmissionId;
@@ -1933,18 +1936,18 @@ function EntryExplorer({
             </article>
             <article className="entry-mini-card">
               <span>Total points</span>
-              <strong>{score.total}</strong>
-              <small>{score.exacts} exact score{score.exacts !== 1 ? "s" : ""}</small>
+              <strong>{receipt.total}</strong>
+              <small>{receipt.exacts} exact score{receipt.exacts !== 1 ? "s" : ""}</small>
             </article>
             <article className="entry-mini-card">
               <span>Groups</span>
-              <strong>{score.groupMatches + score.qualification}</strong>
-              <small>{score.groupMatches} match pts · {score.qualification} qualification</small>
+              <strong>{receipt.categories.groupMatches + receipt.categories.qualification}</strong>
+              <small>{receipt.categories.groupMatches} match pts · {receipt.categories.qualification} qualification</small>
             </article>
             <article className="entry-mini-card">
               <span>Knockout</span>
-              <strong>{score.knockoutMatches + score.placements}</strong>
-              <small>{score.knockoutMatches} match pts · {score.placements} progression</small>
+              <strong>{receipt.categories.knockoutMatches + receipt.categories.placements}</strong>
+              <small>{receipt.categories.knockoutMatches} match pts · {receipt.categories.placements} progression</small>
             </article>
             <div className="entry-bonus-row">
               <TeamPill>Top scorer · {selectedSubmission.bonuses.topScorer || "TBC"}</TeamPill>
@@ -1953,6 +1956,7 @@ function EntryExplorer({
                 Most goals · {selectedSubmission.bonuses.mostGoalsTeam || "TBC"}
               </TeamPill>
             </div>
+            <PointsReceipt receipt={receipt} />
           </div>
         ) : null}
 
@@ -1976,6 +1980,96 @@ function EntryExplorer({
           </div>
         ) : null}
       </div>
+    </section>
+  );
+}
+
+const receiptCategories: Array<{
+  id: ScoreReceiptCategory;
+  label: string;
+  kicker: string;
+}> = [
+  { id: "groupMatches", label: "Group matches", kicker: "Scorelines" },
+  { id: "qualification", label: "Group tables", kicker: "Qualifiers" },
+  { id: "knockoutMatches", label: "Knockout matches", kicker: "Ties" },
+  { id: "placements", label: "Deep runs", kicker: "Bracket" },
+  { id: "bonuses", label: "Bonuses", kicker: "Tournament" },
+];
+
+function PointsReceipt({ receipt }: { receipt: ScoreReceipt }) {
+  const hasLines = receipt.lines.length > 0;
+
+  return (
+    <section className="points-receipt" aria-label="Detailed points receipt">
+      <div className="points-receipt-head">
+        <div className="receipt-title">
+          <span className="title-icon">
+            <ClipboardCheck size={18} />
+          </span>
+          <div>
+            <span className="eyebrow">Points receipt</span>
+            <h3>How this total was built</h3>
+          </div>
+        </div>
+        <div className="receipt-total">
+          <span>So far</span>
+          <strong>{receipt.total}</strong>
+        </div>
+      </div>
+
+      <div className="receipt-category-strip">
+        {receiptCategories.map((category) => (
+          <div className="receipt-category-chip" key={category.id}>
+            <span>{category.kicker}</span>
+            <strong>{receipt.categories[category.id]}</strong>
+            <small>{category.label}</small>
+          </div>
+        ))}
+      </div>
+
+      {hasLines ? (
+        <div className="receipt-sections">
+          {receiptCategories.map((category) => {
+            const lines = receipt.lines.filter((line) => line.category === category.id);
+            return (
+              <section className="receipt-section" key={category.id}>
+                <div className="receipt-section-title">
+                  <div>
+                    <span>{category.kicker}</span>
+                    <h4>{category.label}</h4>
+                  </div>
+                  <b>{receipt.categories[category.id]}</b>
+                </div>
+                {lines.length > 0 ? (
+                  <div className="receipt-lines">
+                    {lines.map((line) => (
+                      <article className="receipt-line" key={line.id}>
+                        <div className="receipt-line-main">
+                          <div className="receipt-line-marker">
+                            {line.team && flagUrlFor(line.team) ? <TeamFlag team={line.team} /> : <span aria-hidden="true" />}
+                          </div>
+                          <div>
+                            <strong>{line.label}</strong>
+                            <small>{line.detail}</small>
+                          </div>
+                        </div>
+                        <b>+{line.points}</b>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="receipt-empty">No points awarded here yet.</p>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="receipt-zero-state">
+          <strong>No points on the receipt yet</strong>
+          <span>Once official results land, every earned result, qualifier, progression pick, and bonus will be itemized here.</span>
+        </div>
+      )}
     </section>
   );
 }

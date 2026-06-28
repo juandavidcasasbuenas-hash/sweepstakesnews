@@ -42,6 +42,31 @@ export const scoringRules = {
   mostGoalsTeam: 30,
 };
 
+export type ScoreReceiptCategory =
+  | "groupMatches"
+  | "knockoutMatches"
+  | "qualification"
+  | "placements"
+  | "bonuses";
+
+export type ScoreReceiptLine = {
+  id: string;
+  category: ScoreReceiptCategory;
+  label: string;
+  detail: string;
+  points: number;
+  fixtureId?: number;
+  stage?: Fixture["stage"];
+  team?: string;
+};
+
+export type ScoreReceipt = {
+  total: number;
+  exacts: number;
+  categories: Record<ScoreReceiptCategory, number>;
+  lines: ScoreReceiptLine[];
+};
+
 const letters = "ABCDEFGHIJKL".split("");
 
 const fixturesInMatchNumberOrder = [...fixtures].sort((a, b) => {
@@ -494,19 +519,45 @@ function allResultsPresent(results: TournamentResults, ids: number[]) {
   return ids.every((id) => scoreComplete(results.matches[id]));
 }
 
-export function scoreSubmission(
+const emptyReceiptCategories = (): Record<ScoreReceiptCategory, number> => ({
+  groupMatches: 0,
+  knockoutMatches: 0,
+  qualification: 0,
+  placements: 0,
+  bonuses: 0,
+});
+
+function ordinal(value: number) {
+  const suffix =
+    value % 10 === 1 && value % 100 !== 11
+      ? "st"
+      : value % 10 === 2 && value % 100 !== 12
+        ? "nd"
+        : value % 10 === 3 && value % 100 !== 13
+          ? "rd"
+          : "th";
+  return `${value}${suffix}`;
+}
+
+function receiptMatchLabel(fixture: Fixture, home: number, away: number) {
+  return `Match ${displayMatchNumber(fixture)} · ${fixture.round} · ${fixture.team1} ${home}-${away} ${fixture.team2}`;
+}
+
+export function scoreSubmissionReceipt(
   submission: Submission,
   results: TournamentResults,
-): ScoreBreakdown {
+): ScoreReceipt {
   const retainedPicks = submission.freshPicks?.basePicks ?? submission.picks;
-  const breakdown: ScoreBreakdown = {
-    total: 0,
-    groupMatches: 0,
-    knockoutMatches: 0,
-    qualification: 0,
-    placements: 0,
-    bonuses: 0,
-    exacts: 0,
+  const categories = emptyReceiptCategories();
+  const lines: ScoreReceiptLine[] = [];
+  let exacts = 0;
+  const addLine = (line: Omit<ScoreReceiptLine, "id">) => {
+    const categoryCount = lines.filter((item) => item.category === line.category).length + 1;
+    lines.push({
+      ...line,
+      id: `${line.category}-${line.fixtureId ?? line.team ?? line.label}-${categoryCount}`,
+    });
+    categories[line.category] += line.points;
   };
 
   for (const fixture of fixtures) {
@@ -521,20 +572,57 @@ export function scoreSubmission(
 
     if (fixture.stage === "group") {
       if (outcome(pHome, pAway) === outcome(result.home, result.away)) {
-        breakdown.groupMatches += scoringRules.groupResult;
+        addLine({
+          category: "groupMatches",
+          label: "Correct result",
+          detail: `${receiptMatchLabel(fixture, pHome, pAway)} · Actual ${result.home}-${result.away}`,
+          points: scoringRules.groupResult,
+          fixtureId: fixture.id,
+          stage: fixture.stage,
+        });
       }
       if (pHome === result.home) {
-        breakdown.groupMatches += scoringRules.groupTeamGoals;
+        addLine({
+          category: "groupMatches",
+          label: `${fixture.team1} goals nailed`,
+          detail: `Match ${displayMatchNumber(fixture)} · ${fixture.team1} scored ${result.home}, exactly as predicted against ${fixture.team2}.`,
+          points: scoringRules.groupTeamGoals,
+          fixtureId: fixture.id,
+          stage: fixture.stage,
+          team: fixture.team1,
+        });
       }
       if (pAway === result.away) {
-        breakdown.groupMatches += scoringRules.groupTeamGoals;
+        addLine({
+          category: "groupMatches",
+          label: `${fixture.team2} goals nailed`,
+          detail: `Match ${displayMatchNumber(fixture)} · ${fixture.team2} scored ${result.away}, exactly as predicted against ${fixture.team1}.`,
+          points: scoringRules.groupTeamGoals,
+          fixtureId: fixture.id,
+          stage: fixture.stage,
+          team: fixture.team2,
+        });
       }
       if (pHome - pAway === result.home - result.away) {
-        breakdown.groupMatches += scoringRules.groupGoalDifferencePerTeam * 2;
+        addLine({
+          category: "groupMatches",
+          label: "Correct goal difference",
+          detail: `${receiptMatchLabel(fixture, pHome, pAway)} matched the ${result.home - result.away} goal margin.`,
+          points: scoringRules.groupGoalDifferencePerTeam * 2,
+          fixtureId: fixture.id,
+          stage: fixture.stage,
+        });
       }
       if (pHome === result.home && pAway === result.away) {
-        breakdown.groupMatches += scoringRules.groupExactBonus;
-        breakdown.exacts += 1;
+        addLine({
+          category: "groupMatches",
+          label: "Exact group score bonus",
+          detail: `${fixture.team1} ${result.home}-${result.away} ${fixture.team2} was perfect.`,
+          points: scoringRules.groupExactBonus,
+          fixtureId: fixture.id,
+          stage: fixture.stage,
+        });
+        exacts += 1;
       }
     } else {
       const resolvedPickFixture = resolveFixtures(submission.picks).find(
@@ -548,20 +636,58 @@ export function scoreSubmission(
           )
         : pick.winner;
       if (pickWinner && result.winner && pickWinner === result.winner) {
-        breakdown.knockoutMatches += scoringRules.knockoutWinner;
+        addLine({
+          category: "knockoutMatches",
+          label: "Correct knockout winner",
+          detail: `${pickWinner} advanced from Match ${displayMatchNumber(fixture)}.`,
+          points: scoringRules.knockoutWinner,
+          fixtureId: fixture.id,
+          stage: fixture.stage,
+          team: pickWinner,
+        });
       }
       if (pHome === result.home) {
-        breakdown.knockoutMatches += scoringRules.knockoutTeamGoals;
+        addLine({
+          category: "knockoutMatches",
+          label: `${resolvedPickFixture?.resolvedTeam1 ?? fixture.team1} goals nailed`,
+          detail: `Match ${displayMatchNumber(fixture)} · Predicted ${pHome}; actual was ${result.home}.`,
+          points: scoringRules.knockoutTeamGoals,
+          fixtureId: fixture.id,
+          stage: fixture.stage,
+          team: resolvedPickFixture?.resolvedTeam1 ?? fixture.team1,
+        });
       }
       if (pAway === result.away) {
-        breakdown.knockoutMatches += scoringRules.knockoutTeamGoals;
+        addLine({
+          category: "knockoutMatches",
+          label: `${resolvedPickFixture?.resolvedTeam2 ?? fixture.team2} goals nailed`,
+          detail: `Match ${displayMatchNumber(fixture)} · Predicted ${pAway}; actual was ${result.away}.`,
+          points: scoringRules.knockoutTeamGoals,
+          fixtureId: fixture.id,
+          stage: fixture.stage,
+          team: resolvedPickFixture?.resolvedTeam2 ?? fixture.team2,
+        });
       }
       if (pHome - pAway === result.home - result.away) {
-        breakdown.knockoutMatches += scoringRules.knockoutGoalDifference;
+        addLine({
+          category: "knockoutMatches",
+          label: "Correct knockout margin",
+          detail: `Match ${displayMatchNumber(fixture)} margin matched: predicted ${pHome - pAway}, actual ${result.home - result.away}.`,
+          points: scoringRules.knockoutGoalDifference,
+          fixtureId: fixture.id,
+          stage: fixture.stage,
+        });
       }
       if (pHome === result.home && pAway === result.away) {
-        breakdown.knockoutMatches += scoringRules.knockoutExactBonus;
-        breakdown.exacts += 1;
+        addLine({
+          category: "knockoutMatches",
+          label: "Exact knockout score bonus",
+          detail: `Match ${displayMatchNumber(fixture)} finished ${result.home}-${result.away}, exactly as predicted.`,
+          points: scoringRules.knockoutExactBonus,
+          fixtureId: fixture.id,
+          stage: fixture.stage,
+        });
+        exacts += 1;
       }
     }
   }
@@ -577,7 +703,13 @@ export function scoreSubmission(
     const actualRound32 = new Set(actualQualified.round32.map((team) => team.team));
     predictedQualified.round32.forEach((team) => {
       if (actualRound32.has(team.team)) {
-        breakdown.qualification += scoringRules.round32Qualification;
+        addLine({
+          category: "qualification",
+          label: "Round of 32 qualifier",
+          detail: `${team.team} made the knockouts from Group ${team.group}.`,
+          points: scoringRules.round32Qualification,
+          team: team.team,
+        });
       }
     });
 
@@ -587,9 +719,21 @@ export function scoreSubmission(
         const actual = actualTable.find((item) => item.team === team.team);
         if (!actual) return;
         if (actual.position === team.position) {
-          breakdown.qualification += scoringRules.exactGroupPosition;
+          addLine({
+            category: "qualification",
+            label: "Exact group position",
+            detail: `${team.team} was predicted ${ordinal(team.position)} and finished ${ordinal(actual.position)} in Group ${group}.`,
+            points: scoringRules.exactGroupPosition,
+            team: team.team,
+          });
         } else if (Math.abs(actual.position - team.position) === 1) {
-          breakdown.qualification += scoringRules.nearGroupPosition;
+          addLine({
+            category: "qualification",
+            label: "Near group position",
+            detail: `${team.team} was one place away: predicted ${ordinal(team.position)}, finished ${ordinal(actual.position)}.`,
+            points: scoringRules.nearGroupPosition,
+            team: team.team,
+          });
         }
       });
     }
@@ -624,21 +768,45 @@ export function scoreSubmission(
     if (quarterFinalistsKnown) {
       const actualQf = teamsInFixtures(actualResolved, [97, 98, 99, 100]);
       predictedSets.qf.forEach((team) => {
-        if (actualQf.has(team)) breakdown.placements += scoringRules.quarterFinalist;
+        if (actualQf.has(team)) {
+          addLine({
+            category: "placements",
+            label: "Quarter-finalist",
+            detail: `${team} reached the quarter-finals.`,
+            points: scoringRules.quarterFinalist,
+            team,
+          });
+        }
       });
     }
 
     if (semiFinalistsKnown) {
       const actualSf = teamsInFixtures(actualResolved, [101, 102]);
       predictedSets.sf.forEach((team) => {
-        if (actualSf.has(team)) breakdown.placements += scoringRules.semiFinalist;
+        if (actualSf.has(team)) {
+          addLine({
+            category: "placements",
+            label: "Semi-finalist",
+            detail: `${team} reached the semi-finals.`,
+            points: scoringRules.semiFinalist,
+            team,
+          });
+        }
       });
     }
 
     if (finalistsKnown) {
       const actualFinal = teamsInFixtures(actualResolved, [104]);
       predictedSets.final.forEach((team) => {
-        if (actualFinal.has(team)) breakdown.placements += scoringRules.finalist;
+        if (actualFinal.has(team)) {
+          addLine({
+            category: "placements",
+            label: "Finalist",
+            detail: `${team} reached the final.`,
+            points: scoringRules.finalist,
+            team,
+          });
+        }
       });
     }
   }
@@ -657,11 +825,29 @@ export function scoreSubmission(
       champion === predictedFinal.resolvedTeam1
         ? predictedFinal.resolvedTeam2
         : predictedFinal.resolvedTeam1;
-    if (champion === finalResult.winner) breakdown.placements += scoringRules.champion;
+    if (champion === finalResult.winner) {
+      addLine({
+        category: "placements",
+        label: "Champion",
+        detail: `${champion} lifted the trophy.`,
+        points: scoringRules.champion,
+        fixtureId: 104,
+        stage: "final",
+        team: champion,
+      });
+    }
     const actualRunner =
       finalResult.winner === finalResult.team1 ? finalResult.team2 : finalResult.team1;
     if (runnerUp && runnerUp === actualRunner) {
-      breakdown.placements += scoringRules.runnerUp;
+      addLine({
+        category: "placements",
+        label: "Runner-up",
+        detail: `${runnerUp} finished second.`,
+        points: scoringRules.runnerUp,
+        fixtureId: 104,
+        stage: "final",
+        team: runnerUp,
+      });
     }
   }
 
@@ -670,31 +856,65 @@ export function scoreSubmission(
     submission.bonuses.topScorer.trim().toLowerCase() ===
       results.bonuses.topScorer.trim().toLowerCase()
   ) {
-    breakdown.bonuses += scoringRules.topScorer;
+    addLine({
+      category: "bonuses",
+      label: "Top scorer bonus",
+      detail: `${submission.bonuses.topScorer} matched the official top scorer.`,
+      points: scoringRules.topScorer,
+      team: submission.bonuses.topScorer,
+    });
   }
   if (
     results.bonuses.goldenBall &&
     submission.bonuses.goldenBall.trim().toLowerCase() ===
       results.bonuses.goldenBall.trim().toLowerCase()
   ) {
-    breakdown.bonuses += scoringRules.goldenBall;
+    addLine({
+      category: "bonuses",
+      label: "Golden ball bonus",
+      detail: `${submission.bonuses.goldenBall} matched the official Golden Ball winner.`,
+      points: scoringRules.goldenBall,
+      team: submission.bonuses.goldenBall,
+    });
   }
   if (
     results.bonuses.mostGoalsTeam &&
     submission.bonuses.mostGoalsTeam.trim().toLowerCase() ===
       results.bonuses.mostGoalsTeam.trim().toLowerCase()
   ) {
-    breakdown.bonuses += scoringRules.mostGoalsTeam;
+    addLine({
+      category: "bonuses",
+      label: "Most goals team bonus",
+      detail: `${submission.bonuses.mostGoalsTeam} matched the team with the most goals.`,
+      points: scoringRules.mostGoalsTeam,
+      team: submission.bonuses.mostGoalsTeam,
+    });
   }
 
-  breakdown.total =
-    breakdown.groupMatches +
-    breakdown.knockoutMatches +
-    breakdown.qualification +
-    breakdown.placements +
-    breakdown.bonuses;
+  const total = Object.values(categories).reduce((sum, points) => sum + points, 0);
 
-  return breakdown;
+  return {
+    total,
+    exacts,
+    categories,
+    lines,
+  };
+}
+
+export function scoreSubmission(
+  submission: Submission,
+  results: TournamentResults,
+): ScoreBreakdown {
+  const receipt = scoreSubmissionReceipt(submission, results);
+  return {
+    total: receipt.total,
+    groupMatches: receipt.categories.groupMatches,
+    knockoutMatches: receipt.categories.knockoutMatches,
+    qualification: receipt.categories.qualification,
+    placements: receipt.categories.placements,
+    bonuses: receipt.categories.bonuses,
+    exacts: receipt.exacts,
+  };
 }
 
 export function sampleResults(): TournamentResults {
