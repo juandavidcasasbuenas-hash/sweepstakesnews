@@ -2028,42 +2028,53 @@ function PointsReceipt({ receipt }: { receipt: ScoreReceipt }) {
       </div>
 
       {hasLines ? (
-        <div className="receipt-sections">
-          {receiptCategories.map((category) => {
-            const lines = receipt.lines.filter((line) => line.category === category.id);
-            return (
-              <section className="receipt-section" key={category.id}>
-                <div className="receipt-section-title">
-                  <div>
-                    <span>{category.kicker}</span>
-                    <h4>{category.label}</h4>
+        <>
+          <nav className="receipt-section-nav" aria-label="Points receipt sections">
+            {receiptCategories.map((category) => (
+              <a href={`#receipt-section-${category.id}`} key={category.id}>
+                <span>{category.label}</span>
+                <b>{receipt.categories[category.id]}</b>
+              </a>
+            ))}
+          </nav>
+
+          <div className="receipt-sections">
+            {receiptCategories.map((category) => {
+              const lines = receipt.lines.filter((line) => line.category === category.id);
+              return (
+                <section className="receipt-section" id={`receipt-section-${category.id}`} key={category.id}>
+                  <div className="receipt-section-title">
+                    <div>
+                      <span>{category.kicker}</span>
+                      <h4>{category.label}</h4>
+                    </div>
+                    <b>{receipt.categories[category.id]}</b>
                   </div>
-                  <b>{receipt.categories[category.id]}</b>
-                </div>
-                {lines.length > 0 ? (
-                  <div className="receipt-lines">
-                    {lines.map((line) => (
-                      <article className="receipt-line" key={line.id}>
-                        <div className="receipt-line-main">
-                          <div className="receipt-line-marker">
-                            {line.team && flagUrlFor(line.team) ? <TeamFlag team={line.team} /> : <span aria-hidden="true" />}
+                  {lines.length > 0 ? (
+                    <div className="receipt-lines">
+                      {lines.map((line) => (
+                        <article className="receipt-line" key={line.id}>
+                          <div className="receipt-line-main">
+                            <div className="receipt-line-marker">
+                              {line.team && flagUrlFor(line.team) ? <TeamFlag team={line.team} /> : <span aria-hidden="true" />}
+                            </div>
+                            <div>
+                              <strong>{line.label}</strong>
+                              <small>{line.detail}</small>
+                            </div>
                           </div>
-                          <div>
-                            <strong>{line.label}</strong>
-                            <small>{line.detail}</small>
-                          </div>
-                        </div>
-                        <b>+{line.points}</b>
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="receipt-empty">No points awarded here yet.</p>
-                )}
-              </section>
-            );
-          })}
-        </div>
+                          <b>+{line.points}</b>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="receipt-empty">No points awarded here yet.</p>
+                  )}
+                </section>
+              );
+            })}
+          </div>
+        </>
       ) : (
         <div className="receipt-zero-state">
           <strong>No points on the receipt yet</strong>

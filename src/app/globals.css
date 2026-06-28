@@ -3464,6 +3464,53 @@ tr.third td:first-child {
   overflow-wrap: anywhere;
 }
 
+.receipt-section-nav {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  background: var(--fg);
+}
+
+.receipt-section-nav a {
+  min-width: max-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.58rem 0.78rem;
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.78);
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.receipt-section-nav a:hover,
+.receipt-section-nav a:focus-visible {
+  background: rgba(200, 0, 30, 0.34);
+  color: #ffffff;
+  outline: none;
+}
+
+.receipt-section-nav b {
+  min-width: 1.7rem;
+  padding: 0.12rem 0.34rem;
+  border-radius: 999px;
+  background: var(--red);
+  color: #ffffff;
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 0.82rem;
+  line-height: 1;
+  text-align: center;
+}
+
 .receipt-sections {
   display: grid;
 }
@@ -3472,6 +3519,7 @@ tr.third td:first-child {
   display: grid;
   grid-template-columns: minmax(150px, 0.28fr) minmax(0, 1fr);
   border-bottom: 1px solid var(--line);
+  scroll-margin-top: 1rem;
 }
 
 .receipt-section:last-child {
