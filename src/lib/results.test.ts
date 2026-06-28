@@ -105,6 +105,40 @@ test("rejects a numeric fallback when its fixture contradicts supplied teams", (
   assert.deepEqual(results.matches, {});
 });
 
+test("maps live knockout rows by provider match number despite placeholder teams", () => {
+  const results = normalizeGenericJson([
+    {
+      match_number: 73,
+      home_team: "Mexico",
+      away_team: "South Korea",
+      home_score: 1,
+      away_score: 0,
+      status: "live",
+      phase: "2H",
+    },
+  ]);
+
+  assert.equal(results.matches[73]?.fixtureId, 73);
+  assert.equal(results.matches[73]?.team1, "Mexico");
+  assert.equal(results.matches[73]?.team2, "South Korea");
+  assert.equal(results.matches[1], undefined);
+});
+
+test("keeps scheduled knockout 0-0 rows out of scoring", () => {
+  const results = normalizeGenericJson([
+    {
+      match_number: 74,
+      home_team: "England",
+      away_team: "Japan",
+      home_score: 0,
+      away_score: 0,
+      status: "scheduled",
+    },
+  ]);
+
+  assert.deepEqual(results.matches, {});
+});
+
 test("counts result provider calls in the last 24 hours", () => {
   assert.equal(
     providerCallsLast24Hours(

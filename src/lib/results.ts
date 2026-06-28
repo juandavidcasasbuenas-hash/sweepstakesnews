@@ -167,7 +167,9 @@ function fixtureCompatibleWithTeams(
   team2?: string,
 ) {
   if (!fixture || !normalizeTeamName(team1) || !normalizeTeamName(team2)) return fixture;
-  return teamNamesEqual(fixture.team1, team1) && teamNamesEqual(fixture.team2, team2)
+  const homeMatches = isPlaceholderTeam(fixture.team1) || teamNamesEqual(fixture.team1, team1);
+  const awayMatches = isPlaceholderTeam(fixture.team2) || teamNamesEqual(fixture.team2, team2);
+  return homeMatches && awayMatches
     ? fixture
     : undefined;
 }
@@ -259,13 +261,13 @@ function resultFromRow(row: unknown, options: NormalizeOptions = {}) {
 
   const fixture =
     findFixtureById(options.overrideFixtureId) ??
-    findFixtureByTeams(team1, team2) ??
-    fixtureCompatibleWithTeams(findFixtureById(explicitFixtureId), team1, team2) ??
     fixtureCompatibleWithTeams(
       fixtureFromProviderMatchNumber(providerMatchNumber),
       team1,
       team2,
     ) ??
+    findFixtureByTeams(team1, team2) ??
+    fixtureCompatibleWithTeams(findFixtureById(explicitFixtureId), team1, team2) ??
     fixtureCompatibleWithTeams(findFixtureById(looseFixtureId), team1, team2);
   const matchId =
     fixture?.id ??
@@ -467,7 +469,7 @@ export async function fetchWc2026TestMatch() {
 }
 
 async function fetchWc2026Matches() {
-  const endpoint = process.env.WC2026_API_URL ?? `${WC2026_API_BASE}/matches?status=completed`;
+  const endpoint = process.env.WC2026_API_URL ?? `${WC2026_API_BASE}/matches`;
   return normalizeGenericJson(
     await fetchJson(endpoint, {
       headers: wc2026Headers(),
