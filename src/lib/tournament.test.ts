@@ -70,6 +70,37 @@ test("fresh picks retain original group-stage scoring", () => {
   assert.notEqual(actualSeedScore.groupMatches, sourceScore.groupMatches);
 });
 
+test("knockout match points require the predicted teams to reach that fixture", () => {
+  const picks = createEmptyPicks();
+  picks[73] = { fixtureId: 73, home: 1, away: 1, winner: "Bosnia & Herzegovina" };
+
+  const submission: Submission = {
+    id: "wrong-bracket",
+    name: "Wrong Bracket",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    picks,
+    bonuses: emptyBonuses(),
+  };
+  const results: TournamentResults = {
+    matches: {
+      73: {
+        fixtureId: 73,
+        team1: "South Africa",
+        team2: "Canada",
+        home: 0,
+        away: 0,
+        status: "live",
+      },
+    },
+    bonuses: emptyBonuses(),
+    updatedAt: "2026-06-28T20:00:00.000Z",
+  };
+
+  const score = scoreSubmission(submission, results);
+  assert.equal(score.knockoutMatches, 0);
+  assert.equal(score.total, 0);
+});
+
 test("fresh picks lock an original champion through the full available final route", () => {
   const sourcePicks = autofillTournament(createEmptyPicks());
   const sourceFinal = sourcePicks[104];

@@ -452,6 +452,22 @@ function resultOutcome(result?: TournamentResults["matches"][number]) {
   return "Draw";
 }
 
+function teamNameMatches(first?: string, second?: string) {
+  return Boolean(first && second && first.trim().toLowerCase() === second.trim().toLowerCase());
+}
+
+function knockoutFixtureMatchesResult(
+  fixture: ResolvedFixture,
+  result?: TournamentResults["matches"][number],
+) {
+  if (fixture.stage === "group") return true;
+  return Boolean(
+    result &&
+      teamNameMatches(fixture.resolvedTeam1, result.team1) &&
+      teamNameMatches(fixture.resolvedTeam2, result.team2),
+  );
+}
+
 function friendlyResultsWarning(message: string) {
   if (message.includes("Results provider returned no scored matches")) {
     return "No official scores available yet. Live scoring will update once matches begin.";
@@ -462,10 +478,15 @@ function friendlyResultsWarning(message: string) {
   return message;
 }
 
-function matchPickClass(pick?: MatchPick, result?: TournamentResults["matches"][number]) {
+function matchPickClass(
+  pick: MatchPick | undefined,
+  result: TournamentResults["matches"][number] | undefined,
+  fixture?: ResolvedFixture,
+) {
   if (!pick || !result || typeof pick.home !== "number" || typeof pick.away !== "number") {
     return "";
   }
+  if (fixture && !knockoutFixtureMatchesResult(fixture, result)) return " missed";
   if (pick.home === result.home && pick.away === result.away) return " exact";
   const pickDirection = Math.sign(pick.home - pick.away);
   const resultDirection = Math.sign(result.home - result.away);
@@ -497,6 +518,9 @@ function scoreMatchPickBreakdown(
     if (pH === result.home && pA === result.away)
       lines.push({ label: "Exact score", pts: scoringRules.groupExactBonus });
   } else {
+    if (!knockoutFixtureMatchesResult(fixture, result)) {
+      return { total: 0, lines };
+    }
     const pickWinner =
       pH > pA ? fixture.resolvedTeam1 :
       pA > pH ? fixture.resolvedTeam2 :
@@ -1803,7 +1827,7 @@ function MatchDayView({
 
                   <div className="matchday-picks">
                     {rows.map(({ submission, fixture: resolved, pick }) => {
-                      const pickClass = matchPickClass(pick, result);
+                      const pickClass = matchPickClass(pick, result, resolved);
                       return (
                         <div
                           className={`matchday-pick${pickClass}${submission.id === ownSubmissionId ? " own-row" : ""}`}

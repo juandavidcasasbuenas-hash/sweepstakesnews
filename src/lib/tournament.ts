@@ -125,6 +125,21 @@ function outcome(home: number, away: number) {
   return "draw";
 }
 
+function teamNameMatches(first?: string, second?: string) {
+  return Boolean(first && second && first.trim().toLowerCase() === second.trim().toLowerCase());
+}
+
+function knockoutParticipantsMatchResult(
+  fixture: ResolvedFixture | undefined,
+  result: ResultMatch,
+) {
+  return Boolean(
+    fixture &&
+      teamNameMatches(fixture.resolvedTeam1, result.team1) &&
+      teamNameMatches(fixture.resolvedTeam2, result.team2),
+  );
+}
+
 export function winnerFor(team1: string, team2: string, pick?: MatchPick) {
   if (
     !pick ||
@@ -628,6 +643,8 @@ export function scoreSubmissionReceipt(
       const resolvedPickFixture = resolveFixtures(submission.picks).find(
         (item) => item.id === fixture.id,
       );
+      if (!knockoutParticipantsMatchResult(resolvedPickFixture, result)) continue;
+
       const pickWinner = resolvedPickFixture
         ? winnerFor(
             resolvedPickFixture.resolvedTeam1,
