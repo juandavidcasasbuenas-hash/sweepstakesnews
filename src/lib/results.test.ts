@@ -124,6 +124,39 @@ test("maps live knockout rows by provider match number despite placeholder teams
   assert.equal(results.matches[1], undefined);
 });
 
+test("maps resolved knockout teams instead of trusting a contradictory match number", () => {
+  const groupRows = [
+    { fixtureId: 13, home_team: "Brazil", away_team: "Morocco", home_score: 3, away_score: 0 },
+    { fixtureId: 14, home_team: "Haiti", away_team: "Scotland", home_score: 0, away_score: 1 },
+    { fixtureId: 15, home_team: "Scotland", away_team: "Morocco", home_score: 1, away_score: 1 },
+    { fixtureId: 16, home_team: "Brazil", away_team: "Haiti", home_score: 2, away_score: 0 },
+    { fixtureId: 17, home_team: "Scotland", away_team: "Brazil", home_score: 0, away_score: 2 },
+    { fixtureId: 18, home_team: "Morocco", away_team: "Haiti", home_score: 2, away_score: 0 },
+    { fixtureId: 31, home_team: "Netherlands", away_team: "Japan", home_score: 2, away_score: 0 },
+    { fixtureId: 32, home_team: "Sweden", away_team: "Tunisia", home_score: 0, away_score: 0 },
+    { fixtureId: 33, home_team: "Netherlands", away_team: "Sweden", home_score: 1, away_score: 0 },
+    { fixtureId: 34, home_team: "Tunisia", away_team: "Japan", home_score: 0, away_score: 2 },
+    { fixtureId: 35, home_team: "Japan", away_team: "Sweden", home_score: 1, away_score: 0 },
+    { fixtureId: 36, home_team: "Tunisia", away_team: "Netherlands", home_score: 0, away_score: 2 },
+  ].map((row) => ({ ...row, status: "completed" }));
+  const results = normalizeGenericJson([
+    ...groupRows,
+    {
+      match_number: 76,
+      home_team: "Brazil",
+      away_team: "Japan",
+      home_score: 1,
+      away_score: 0,
+      status: "live",
+    },
+  ]);
+
+  assert.equal(results.matches[76]?.fixtureId, 76);
+  assert.equal(results.matches[76]?.team1, "Brazil");
+  assert.equal(results.matches[76]?.team2, "Japan");
+  assert.equal(results.matches[75], undefined);
+});
+
 test("keeps scheduled knockout 0-0 rows out of scoring", () => {
   const results = normalizeGenericJson([
     {

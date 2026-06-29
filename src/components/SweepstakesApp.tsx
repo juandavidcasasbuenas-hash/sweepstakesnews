@@ -416,6 +416,14 @@ function bracketWinner(
   return pick.winner || (mode === "prediction" ? fixture.resolvedTeam1 : "");
 }
 
+function matchupKey(team1: string, team2: string) {
+  if (isPlaceholderTeam(team1) || isPlaceholderTeam(team2)) return "";
+  return [team1, team2]
+    .map((team) => team.trim().toLowerCase())
+    .sort()
+    .join("|");
+}
+
 function ScoreTeamLabel({
   team,
   goals,
@@ -2307,8 +2315,10 @@ function Bracket({
 
 function CurrentRound32({
   results,
+  submissions,
 }: {
   results: TournamentResults;
+  submissions: Submission[];
 }) {
   const currentResolved = useMemo(() => resolveFixtures(results.matches), [results.matches]);
   const currentQualified = useMemo(() => qualifiedTeams(results.matches), [results.matches]);
@@ -2319,6 +2329,34 @@ function CurrentRound32({
         .filter(Boolean) as ResolvedFixture[],
     [currentResolved],
   );
+  const predictorNamesByFixture = useMemo(() => {
+    const currentKeys = new Map(
+      round32Fixtures.map((fixture) => [
+        fixture.id,
+        matchupKey(fixture.resolvedTeam1, fixture.resolvedTeam2),
+      ]),
+    );
+    const namesByFixture = new Map<number, string[]>();
+
+    submissions.forEach((submission) => {
+      const predictedResolved = resolveFixtures(submission.picks);
+      round32Fixtures.forEach((currentFixture) => {
+        const currentKey = currentKeys.get(currentFixture.id);
+        const predictedFixture = predictedResolved.find((fixture) => fixture.id === currentFixture.id);
+        if (
+          currentKey &&
+          predictedFixture &&
+          matchupKey(predictedFixture.resolvedTeam1, predictedFixture.resolvedTeam2) === currentKey
+        ) {
+          const names = namesByFixture.get(currentFixture.id) ?? [];
+          names.push(submission.name);
+          namesByFixture.set(currentFixture.id, names);
+        }
+      });
+    });
+
+    return namesByFixture;
+  }, [round32Fixtures, submissions]);
   const knockoutResults = Object.values(results.matches ?? {}).filter((match) => {
     const fixture = currentResolved.find((item) => item.id === match.fixtureId);
     return fixture && fixture.stage !== "group";
@@ -2408,6 +2446,7 @@ function CurrentRound32({
           const result = results.matches[fixture.id];
           const homeLabel = bracketTeamLabel(fixture.resolvedTeam1);
           const awayLabel = bracketTeamLabel(fixture.resolvedTeam2);
+          const predictorNames = predictorNamesByFixture.get(fixture.id) ?? [];
           return (
             <article className="current-ro32-fixture" key={fixture.id}>
               <div className="fixture-meta">
@@ -2422,6 +2461,15 @@ function CurrentRound32({
                 <b>{result ? `${result.home} - ${result.away}` : "vs"}</b>
                 <TeamLabel team={awayLabel} />
               </div>
+              {predictorNames.length ? (
+                <div className="current-ro32-predictors" aria-label="Correct matchup predictors">
+                  {predictorNames.map((name, index) => (
+                    <span className="current-ro32-predictor-pill" key={`${fixture.id}-${name}-${index}`}>
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
               <small>{fixture.venue}</small>
             </article>
           );
@@ -3407,7 +3455,7 @@ export default function SweepstakesApp({
                     {resultsSyncing ? "Refreshing live results..." : resultsStatus}
                   </p>
                 ) : null}
-                <CurrentRound32 results={results} />
+                <CurrentRound32 results={results} submissions={submissions} />
               </div>
             )}
 

@@ -1950,6 +1950,30 @@ tr.third td:first-child {
   text-transform: uppercase;
 }
 
+.current-ro32-predictors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.current-ro32-predictor-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.13rem 0.45rem;
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  background: var(--gold-light);
+  color: var(--gold);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .current-ro32-fixture > small {
   color: var(--muted);
   font-size: 0.74rem;

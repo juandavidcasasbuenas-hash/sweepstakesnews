@@ -5,6 +5,7 @@ import {
   emptyBonuses,
   FIRST_KICK_OFF_ISO,
   fixtureFromProviderMatchNumber,
+  resolveFixtures,
   sampleResults,
 } from "@/lib/tournament";
 import { getSupabase } from "@/lib/supabase";
@@ -161,6 +162,96 @@ function findFixtureById(fixtureId?: number) {
   return fixtureId ? fixtures.find((fixture) => fixture.id === fixtureId) : undefined;
 }
 
+function resolvedFixtureFor(
+  fixture: Fixture | undefined,
+  matches?: Record<number, ResultMatch>,
+) {
+  if (!fixture || !matches) return undefined;
+  return resolveFixtures(matches).find((resolved) => resolved.id === fixture.id);
+}
+
+function resultScoreComplete(result?: Pick<ResultMatch, "home" | "away">) {
+  return typeof result?.home === "number" && typeof result.away === "number";
+}
+
+function groupResultsComplete(group: string, matches: Record<number, ResultMatch>) {
+  return fixtures
+    .filter((fixture) => fixture.stage === "group" && fixture.group === group)
+    .every((fixture) => resultScoreComplete(matches[fixture.id]));
+}
+
+function allGroupResultsComplete(matches: Record<number, ResultMatch>) {
+  return fixtures
+    .filter((fixture) => fixture.stage === "group")
+    .every((fixture) => resultScoreComplete(matches[fixture.id]));
+}
+
+function fixtureTokenResolved(
+  token: string,
+  matches: Record<number, ResultMatch>,
+): boolean {
+  const clean = token.replace(/\s/g, "");
+  const directGroupSeed = clean.match(/^[12]([A-L])$/);
+  if (directGroupSeed) return groupResultsComplete(directGroupSeed[1], matches);
+  if (/^3[A-L/]+$/.test(clean)) return allGroupResultsComplete(matches);
+  const previousFixture = clean.match(/^[WL](\d+)$/);
+  if (previousFixture) return resultScoreComplete(matches[Number(previousFixture[1])]);
+  return true;
+}
+
+function fixtureTeamsResolved(fixture: Fixture, matches: Record<number, ResultMatch>) {
+  return (
+    fixtureTokenResolved(fixture.team1, matches) &&
+    fixtureTokenResolved(fixture.team2, matches)
+  );
+}
+
+function resolvedFixtureCompatibleWithTeams(
+  fixture: Fixture | undefined,
+  team1?: string,
+  team2?: string,
+  matches?: Record<number, ResultMatch>,
+) {
+  const compatible = fixtureCompatibleWithTeams(fixture, team1, team2);
+  if (!compatible || !normalizeTeamName(team1) || !normalizeTeamName(team2)) return compatible;
+  if (!isPlaceholderTeam(compatible.team1) && !isPlaceholderTeam(compatible.team2)) {
+    return compatible;
+  }
+  if (!matches || !fixtureTeamsResolved(compatible, matches)) return compatible;
+
+  const resolved = resolvedFixtureFor(compatible, matches);
+  if (!resolved) return compatible;
+  const homeResolved = !isPlaceholderTeam(resolved.resolvedTeam1);
+  const awayResolved = !isPlaceholderTeam(resolved.resolvedTeam2);
+
+  if (homeResolved && awayResolved) {
+    return teamNamesEqual(resolved.resolvedTeam1, team1) &&
+      teamNamesEqual(resolved.resolvedTeam2, team2)
+      ? compatible
+      : undefined;
+  }
+  if (homeResolved && !teamNamesEqual(resolved.resolvedTeam1, team1)) return undefined;
+  if (awayResolved && !teamNamesEqual(resolved.resolvedTeam2, team2)) return undefined;
+  return compatible;
+}
+
+function findResolvedFixtureByTeams(
+  team1?: string,
+  team2?: string,
+  matches?: Record<number, ResultMatch>,
+) {
+  if (!matches || !normalizeTeamName(team1) || !normalizeTeamName(team2)) return undefined;
+  return resolveFixtures(matches).find(
+    (fixture) =>
+      fixture.stage !== "group" &&
+      fixtureTeamsResolved(fixture, matches) &&
+      !isPlaceholderTeam(fixture.resolvedTeam1) &&
+      !isPlaceholderTeam(fixture.resolvedTeam2) &&
+      teamNamesEqual(fixture.resolvedTeam1, team1) &&
+      teamNamesEqual(fixture.resolvedTeam2, team2),
+  );
+}
+
 function fixtureCompatibleWithTeams(
   fixture: Fixture | undefined,
   team1?: string,
@@ -191,6 +282,7 @@ type NormalizeOptions = {
   overrideFixtureId?: number;
   allowUnmapped?: boolean;
   includeScheduled?: boolean;
+  knownMatches?: Record<number, ResultMatch>;
 };
 
 function resultFromRow(row: unknown, options: NormalizeOptions = {}) {
@@ -261,14 +353,26 @@ function resultFromRow(row: unknown, options: NormalizeOptions = {}) {
 
   const fixture =
     findFixtureById(options.overrideFixtureId) ??
-    fixtureCompatibleWithTeams(
+    resolvedFixtureCompatibleWithTeams(
       fixtureFromProviderMatchNumber(providerMatchNumber),
       team1,
       team2,
+      options.knownMatches,
     ) ??
     findFixtureByTeams(team1, team2) ??
-    fixtureCompatibleWithTeams(findFixtureById(explicitFixtureId), team1, team2) ??
-    fixtureCompatibleWithTeams(findFixtureById(looseFixtureId), team1, team2);
+    findResolvedFixtureByTeams(team1, team2, options.knownMatches) ??
+    resolvedFixtureCompatibleWithTeams(
+      findFixtureById(explicitFixtureId),
+      team1,
+      team2,
+      options.knownMatches,
+    ) ??
+    resolvedFixtureCompatibleWithTeams(
+      findFixtureById(looseFixtureId),
+      team1,
+      team2,
+      options.knownMatches,
+    );
   const matchId =
     fixture?.id ??
     (options.allowUnmapped ? explicitFixtureId ?? looseFixtureId ?? providerId : undefined);
@@ -329,6 +433,17 @@ function rowsFromPayload(payload: unknown) {
   return [];
 }
 
+function rowMatchSortKey(row: unknown) {
+  const source = asRecord(row);
+  return firstNumber(
+    source.match_number,
+    source.matchNumber,
+    source.fixtureId,
+    source.number,
+    source.match,
+  );
+}
+
 export function normalizeGenericJson(
   payload: unknown,
   options: NormalizeOptions = {},
@@ -336,10 +451,18 @@ export function normalizeGenericJson(
   const matches: Record<number, ResultMatch> = {};
   const checkedAt = new Date().toISOString();
 
-  rowsFromPayload(payload).forEach((row) => {
-    const result = resultFromRow(row, options);
-    if (result) matches[result.fixtureId] = result;
-  });
+  rowsFromPayload(payload)
+    .map((row, index) => ({ row, index, sortKey: rowMatchSortKey(row) }))
+    .sort((a, b) => {
+      if (a.sortKey === undefined && b.sortKey === undefined) return a.index - b.index;
+      if (a.sortKey === undefined) return 1;
+      if (b.sortKey === undefined) return -1;
+      return a.sortKey - b.sortKey || a.index - b.index;
+    })
+    .forEach(({ row }) => {
+      const result = resultFromRow(row, { ...options, knownMatches: matches });
+      if (result) matches[result.fixtureId] = result;
+    });
 
   return {
     matches,
