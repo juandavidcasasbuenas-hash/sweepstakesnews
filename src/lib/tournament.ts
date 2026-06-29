@@ -30,6 +30,7 @@ export const scoringRules = {
   knockoutTeamGoals: 6,
   knockoutGoalDifference: 6,
   knockoutExactBonus: 10,
+  round16Participant: 20,
   quarterFinalist: 30,
   semiFinalist: 40,
   finalist: 50,
@@ -763,11 +764,12 @@ export function scoreSubmissionReceipt(
   const quarterComplete = allResultsPresent(results, fixtureIdsByStage("quarter"));
   const semiComplete = allResultsPresent(results, fixtureIdsByStage("semi"));
 
-  const quarterFinalistsKnown = groupResultsComplete && round32Complete && round16Complete;
+  const round16TeamsKnown = groupResultsComplete && round32Complete;
+  const quarterFinalistsKnown = round16TeamsKnown && round16Complete;
   const semiFinalistsKnown = quarterFinalistsKnown && quarterComplete;
   const finalistsKnown = semiFinalistsKnown && semiComplete;
 
-  if (quarterFinalistsKnown || semiFinalistsKnown || finalistsKnown) {
+  if (round16TeamsKnown || quarterFinalistsKnown || semiFinalistsKnown || finalistsKnown) {
     const actualResolved = resolveFixtures(results.matches);
     const predictedResolved = resolveFixtures(submission.picks);
     const teamsInFixtures = (resolved: ResolvedFixture[], ids: number[]) =>
@@ -777,10 +779,26 @@ export function scoreSubmissionReceipt(
           .flatMap((fixture) => [fixture.resolvedTeam1, fixture.resolvedTeam2]),
       );
     const predictedSets = {
+      r16: teamsInFixtures(predictedResolved, [89, 90, 91, 92, 93, 94, 95, 96]),
       qf: teamsInFixtures(predictedResolved, [97, 98, 99, 100]),
       sf: teamsInFixtures(predictedResolved, [101, 102]),
       final: teamsInFixtures(predictedResolved, [104]),
     };
+
+    if (round16TeamsKnown) {
+      const actualR16 = teamsInFixtures(actualResolved, [89, 90, 91, 92, 93, 94, 95, 96]);
+      predictedSets.r16.forEach((team) => {
+        if (actualR16.has(team)) {
+          addLine({
+            category: "placements",
+            label: "Round-of-16 team",
+            detail: `${team} reached the Round of 16.`,
+            points: scoringRules.round16Participant,
+            team,
+          });
+        }
+      });
+    }
 
     if (quarterFinalistsKnown) {
       const actualQf = teamsInFixtures(actualResolved, [97, 98, 99, 100]);

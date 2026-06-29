@@ -7,10 +7,11 @@ import {
   emptyBonuses,
   groupFixtures,
   resolveFixtures,
+  scoringRules,
   scoreSubmission,
   winnerFor,
 } from "@/lib/tournament";
-import type { Submission, TournamentResults } from "@/types/game";
+import type { Fixture, Submission, TournamentResults } from "@/types/game";
 
 test("fresh picks retain original group-stage scoring", () => {
   const sourcePicks = createEmptyPicks();
@@ -99,6 +100,47 @@ test("knockout match points require the predicted teams to reach that fixture", 
   const score = scoreSubmission(submission, results);
   assert.equal(score.knockoutMatches, 0);
   assert.equal(score.total, 0);
+});
+
+test("round of 16 teams earn a deep-run bonus after the round of 32", () => {
+  const picks = createEmptyPicks();
+  Object.keys(picks).forEach((fixtureId) => {
+    picks[Number(fixtureId)] = { fixtureId: Number(fixtureId), home: 1, away: 0 };
+  });
+
+  const completedStages = new Set<Fixture["stage"]>(["group", "round32"]);
+  const resolved = resolveFixtures(picks);
+  const results: TournamentResults = {
+    matches: Object.fromEntries(
+      resolved
+        .filter((fixture) => completedStages.has(fixture.stage))
+        .map((fixture) => [
+          fixture.id,
+          {
+            fixtureId: fixture.id,
+            team1: fixture.resolvedTeam1,
+            team2: fixture.resolvedTeam2,
+            home: 1,
+            away: 0,
+            winner: fixture.resolvedTeam1,
+            status: "completed",
+          },
+        ]),
+    ),
+    bonuses: emptyBonuses(),
+    updatedAt: "2026-07-04T00:00:00.000Z",
+  };
+  const submission: Submission = {
+    id: "round-16-bonus",
+    name: "Round 16 Bonus",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    picks,
+    bonuses: emptyBonuses(),
+  };
+
+  const score = scoreSubmission(submission, results);
+
+  assert.equal(score.placements, 16 * scoringRules.round16Participant);
 });
 
 test("fresh picks lock an original champion through the full available final route", () => {

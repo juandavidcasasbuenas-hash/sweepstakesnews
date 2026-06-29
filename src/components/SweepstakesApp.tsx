@@ -3508,6 +3508,7 @@ export default function SweepstakesApp({
                   </div>
                   <div className="rules-section">
                     <div className="rules-section-title">Deep run bonuses</div>
+                    <div className="rules-row"><span>Round-of-16 team</span><b>+{scoringRules.round16Participant}</b></div>
                     <div className="rules-row"><span>Quarter-finalist</span><b>+{scoringRules.quarterFinalist}</b></div>
                     <div className="rules-row"><span>Semi-finalist</span><b>+{scoringRules.semiFinalist}</b></div>
                     <div className="rules-row"><span>Finalist</span><b>+{scoringRules.finalist}</b></div>
