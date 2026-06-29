@@ -32,11 +32,22 @@ export function slugifyName(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+function avatarSlugCandidates(name: string) {
+  const trimmed = name.trim();
+  const withoutParenthetical = trimmed.replace(/\s*[\[(][^\])]+[\])]\s*$/g, "").trim();
+  return Array.from(
+    new Set(
+      [trimmed, withoutParenthetical]
+        .filter(Boolean)
+        .map((candidate) => ALIASES[slugifyName(candidate)] ?? slugifyName(candidate)),
+    ),
+  );
+}
+
 /** Returns the public path to a player's avatar, or null if none exists. */
 export function avatarForName(name: string): string | null {
-  const slug = slugifyName(name);
-  const resolved = ALIASES[slug] ?? slug;
-  return AVATAR_SLUGS.has(resolved) ? `/avatars/${resolved}.png` : null;
+  const resolved = avatarSlugCandidates(name).find((slug) => AVATAR_SLUGS.has(slug));
+  return resolved ? `/avatars/${resolved}.png` : null;
 }
 
 /** 1-2 letter fallback used when a player has no headshot. */
