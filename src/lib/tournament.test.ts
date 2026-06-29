@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  autofillTournament,
   createEmptyPicks,
   createFreshPicksDraft,
   emptyBonuses,
@@ -143,8 +142,87 @@ test("round of 16 teams earn a deep-run bonus after the round of 32", () => {
   assert.equal(score.placements, 16 * scoringRules.round16Participant);
 });
 
+test("next-stage bonuses land as soon as a feeder knockout match has a winner", () => {
+  const picks = createEmptyPicks();
+  Object.keys(picks).forEach((fixtureId) => {
+    picks[Number(fixtureId)] = { fixtureId: Number(fixtureId), home: 1, away: 0 };
+  });
+  const resolved = resolveFixtures(picks);
+  const round32 = resolved.find((fixture) => fixture.id === 73);
+  assert.ok(round32);
+
+  const results: TournamentResults = {
+    matches: {
+      73: {
+        fixtureId: 73,
+        team1: round32.resolvedTeam1,
+        team2: round32.resolvedTeam2,
+        home: 1,
+        away: 0,
+        winner: round32.resolvedTeam1,
+        status: "completed",
+      },
+    },
+    bonuses: emptyBonuses(),
+    updatedAt: "2026-06-28T22:00:00.000Z",
+  };
+  const submission: Submission = {
+    id: "single-ko-winner",
+    name: "Single KO Winner",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    picks,
+    bonuses: emptyBonuses(),
+  };
+
+  const score = scoreSubmission(submission, results);
+
+  assert.equal(score.placements, scoringRules.round16Participant);
+});
+
+test("unsettled knockout draws do not advance a placeholder team", () => {
+  const picks = createEmptyPicks();
+  Object.keys(picks).forEach((fixtureId) => {
+    picks[Number(fixtureId)] = { fixtureId: Number(fixtureId), home: 1, away: 0 };
+  });
+  const resolved = resolveFixtures(picks);
+  const round32 = resolved.find((fixture) => fixture.id === 73);
+  assert.ok(round32);
+
+  const results: TournamentResults = {
+    matches: {
+      73: {
+        fixtureId: 73,
+        team1: round32.resolvedTeam1,
+        team2: round32.resolvedTeam2,
+        home: 1,
+        away: 1,
+        status: "live",
+      },
+    },
+    bonuses: emptyBonuses(),
+    updatedAt: "2026-06-28T21:00:00.000Z",
+  };
+  const actualResolved = resolveFixtures(results.matches);
+  const round16 = actualResolved.find((fixture) => fixture.id === 90);
+  assert.ok(round16);
+
+  const submission: Submission = {
+    id: "unsettled-ko-draw",
+    name: "Unsettled KO Draw",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    picks,
+    bonuses: emptyBonuses(),
+  };
+
+  assert.equal(round16.resolvedTeam1, "W73");
+  assert.equal(scoreSubmission(submission, results).placements, 0);
+});
+
 test("fresh picks lock an original champion through the full available final route", () => {
-  const sourcePicks = autofillTournament(createEmptyPicks());
+  const sourcePicks = createEmptyPicks();
+  Object.keys(sourcePicks).forEach((fixtureId) => {
+    sourcePicks[Number(fixtureId)] = { fixtureId: Number(fixtureId), home: 1, away: 0 };
+  });
   const sourceFinal = sourcePicks[104];
   sourcePicks[104] = { ...sourceFinal, home: 2, away: 0, winner: undefined };
   const source: Submission = {

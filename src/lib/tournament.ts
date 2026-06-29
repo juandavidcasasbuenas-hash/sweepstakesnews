@@ -154,6 +154,49 @@ export function winnerFor(team1: string, team2: string, pick?: MatchPick) {
   return pick.winner || team1;
 }
 
+function advancingTeamFor(team1: string, team2: string, pick?: MatchPick | ResultMatch) {
+  if (
+    !pick ||
+    typeof pick.home !== "number" ||
+    typeof pick.away !== "number"
+  ) {
+    return "";
+  }
+  if (pick.home > pick.away) return team1;
+  if (pick.away > pick.home) return team2;
+  if (pick.winner === team1 || pick.winner === team2) return pick.winner;
+  return "";
+}
+
+function losingTeamFor(team1: string, team2: string, pick?: MatchPick | ResultMatch) {
+  const winner = advancingTeamFor(team1, team2, pick);
+  if (!winner) return "";
+  return winner === team1 ? team2 : team1;
+}
+
+function isPlaceholderTeam(team: string) {
+  return !team || /^([WL]\d+|[123][A-L/]+)$/i.test(team.replace(/\s/g, ""));
+}
+
+function resultMatchTeams(pick?: MatchPick | ResultMatch) {
+  return pick && "team1" in pick && "team2" in pick && pick.team1 && pick.team2
+    ? { team1: pick.team1, team2: pick.team2 }
+    : undefined;
+}
+
+function resolvedWinnerFor(team1: string, team2: string, pick?: MatchPick | ResultMatch) {
+  return resultMatchTeams(pick)
+    ? advancingTeamFor(team1, team2, pick)
+    : winnerFor(team1, team2, pick as MatchPick | undefined);
+}
+
+function resolvedLoserFor(team1: string, team2: string, pick?: MatchPick | ResultMatch) {
+  if (resultMatchTeams(pick)) return losingTeamFor(team1, team2, pick);
+  const winner = winnerFor(team1, team2, pick as MatchPick | undefined);
+  if (!winner) return "";
+  return winner === team1 ? team2 : team1;
+}
+
 export function calculateGroupStandings(
   picks: Record<number, MatchPick | ResultMatch>,
 ) {
@@ -328,6 +371,7 @@ export function resolveFixtures(
   for (const fixture of fixtures) {
     let resolvedTeam1 = fixture.team1;
     let resolvedTeam2 = fixture.team2;
+    const fixturePick = picks[fixture.id];
 
     if (fixture.stage !== "group") {
       const winner1 = fixture.team1.match(/^W(\d+)$/);
@@ -337,20 +381,15 @@ export function resolveFixtures(
 
       if (winner1) {
         const prev = resolved.get(Number(winner1[1]));
-        const prevPick = picks[Number(winner1[1])] as MatchPick | undefined;
+        const prevPick = picks[Number(winner1[1])];
         resolvedTeam1 = prev
-          ? winnerFor(prev.resolvedTeam1, prev.resolvedTeam2, prevPick)
+          ? resolvedWinnerFor(prev.resolvedTeam1, prev.resolvedTeam2, prevPick) || fixture.team1
           : fixture.team1;
       } else if (loser1) {
         const prev = resolved.get(Number(loser1[1]));
-        const prevPick = picks[Number(loser1[1])] as MatchPick | undefined;
-        const win = prev
-          ? winnerFor(prev.resolvedTeam1, prev.resolvedTeam2, prevPick)
-          : "";
+        const prevPick = picks[Number(loser1[1])];
         resolvedTeam1 = prev
-          ? win === prev.resolvedTeam1
-            ? prev.resolvedTeam2
-            : prev.resolvedTeam1
+          ? resolvedLoserFor(prev.resolvedTeam1, prev.resolvedTeam2, prevPick) || fixture.team1
           : fixture.team1;
       } else {
         resolvedTeam1 = rankToken(fixture.team1, picks, thirdPlaceSlots, fixture.id);
@@ -358,24 +397,25 @@ export function resolveFixtures(
 
       if (winner2) {
         const prev = resolved.get(Number(winner2[1]));
-        const prevPick = picks[Number(winner2[1])] as MatchPick | undefined;
+        const prevPick = picks[Number(winner2[1])];
         resolvedTeam2 = prev
-          ? winnerFor(prev.resolvedTeam1, prev.resolvedTeam2, prevPick)
+          ? resolvedWinnerFor(prev.resolvedTeam1, prev.resolvedTeam2, prevPick) || fixture.team2
           : fixture.team2;
       } else if (loser2) {
         const prev = resolved.get(Number(loser2[1]));
-        const prevPick = picks[Number(loser2[1])] as MatchPick | undefined;
-        const win = prev
-          ? winnerFor(prev.resolvedTeam1, prev.resolvedTeam2, prevPick)
-          : "";
+        const prevPick = picks[Number(loser2[1])];
         resolvedTeam2 = prev
-          ? win === prev.resolvedTeam1
-            ? prev.resolvedTeam2
-            : prev.resolvedTeam1
+          ? resolvedLoserFor(prev.resolvedTeam1, prev.resolvedTeam2, prevPick) || fixture.team2
           : fixture.team2;
       } else {
         resolvedTeam2 = rankToken(fixture.team2, picks, thirdPlaceSlots, fixture.id);
       }
+    }
+
+    const resultTeams = resultMatchTeams(fixturePick);
+    if (resultTeams) {
+      resolvedTeam1 = resultTeams.team1;
+      resolvedTeam2 = resultTeams.team2;
     }
 
     resolved.set(fixture.id, { ...fixture, resolvedTeam1, resolvedTeam2 });
@@ -759,94 +799,77 @@ export function scoreSubmissionReceipt(
 
   const fixtureIdsByStage = (stage: string) =>
     fixtures.filter((fixture) => fixture.stage === stage).map((fixture) => fixture.id);
-  const round32Complete = allResultsPresent(results, fixtureIdsByStage("round32"));
-  const round16Complete = allResultsPresent(results, fixtureIdsByStage("round16"));
-  const quarterComplete = allResultsPresent(results, fixtureIdsByStage("quarter"));
-  const semiComplete = allResultsPresent(results, fixtureIdsByStage("semi"));
-
-  const round16TeamsKnown = groupResultsComplete && round32Complete;
-  const quarterFinalistsKnown = round16TeamsKnown && round16Complete;
-  const semiFinalistsKnown = quarterFinalistsKnown && quarterComplete;
-  const finalistsKnown = semiFinalistsKnown && semiComplete;
-
-  if (round16TeamsKnown || quarterFinalistsKnown || semiFinalistsKnown || finalistsKnown) {
-    const actualResolved = resolveFixtures(results.matches);
-    const predictedResolved = resolveFixtures(submission.picks);
-    const teamsInFixtures = (resolved: ResolvedFixture[], ids: number[]) =>
-      new Set(
-        resolved
-          .filter((fixture) => ids.includes(fixture.id))
-          .flatMap((fixture) => [fixture.resolvedTeam1, fixture.resolvedTeam2]),
-      );
-    const predictedSets = {
-      r16: teamsInFixtures(predictedResolved, [89, 90, 91, 92, 93, 94, 95, 96]),
-      qf: teamsInFixtures(predictedResolved, [97, 98, 99, 100]),
-      sf: teamsInFixtures(predictedResolved, [101, 102]),
-      final: teamsInFixtures(predictedResolved, [104]),
-    };
-
-    if (round16TeamsKnown) {
-      const actualR16 = teamsInFixtures(actualResolved, [89, 90, 91, 92, 93, 94, 95, 96]);
-      predictedSets.r16.forEach((team) => {
-        if (actualR16.has(team)) {
-          addLine({
-            category: "placements",
-            label: "Round-of-16 team",
-            detail: `${team} reached the Round of 16.`,
-            points: scoringRules.round16Participant,
-            team,
-          });
-        }
-      });
-    }
-
-    if (quarterFinalistsKnown) {
-      const actualQf = teamsInFixtures(actualResolved, [97, 98, 99, 100]);
-      predictedSets.qf.forEach((team) => {
-        if (actualQf.has(team)) {
-          addLine({
-            category: "placements",
-            label: "Quarter-finalist",
-            detail: `${team} reached the quarter-finals.`,
-            points: scoringRules.quarterFinalist,
-            team,
-          });
-        }
-      });
-    }
-
-    if (semiFinalistsKnown) {
-      const actualSf = teamsInFixtures(actualResolved, [101, 102]);
-      predictedSets.sf.forEach((team) => {
-        if (actualSf.has(team)) {
-          addLine({
-            category: "placements",
-            label: "Semi-finalist",
-            detail: `${team} reached the semi-finals.`,
-            points: scoringRules.semiFinalist,
-            team,
-          });
-        }
-      });
-    }
-
-    if (finalistsKnown) {
-      const actualFinal = teamsInFixtures(actualResolved, [104]);
-      predictedSets.final.forEach((team) => {
-        if (actualFinal.has(team)) {
-          addLine({
-            category: "placements",
-            label: "Finalist",
-            detail: `${team} reached the final.`,
-            points: scoringRules.finalist,
-            team,
-          });
-        }
-      });
-    }
-  }
-
+  const actualResolved = resolveFixtures(results.matches);
   const predictedResolved = resolveFixtures(submission.picks);
+  const teamsInFixtures = (resolved: ResolvedFixture[], ids: number[]) =>
+    new Set(
+      resolved
+        .filter((fixture) => ids.includes(fixture.id))
+        .flatMap((fixture) => [fixture.resolvedTeam1, fixture.resolvedTeam2])
+        .filter((team) => !isPlaceholderTeam(team)),
+    );
+  const predictedSets = {
+    r16: teamsInFixtures(predictedResolved, fixtureIdsByStage("round16")),
+    qf: teamsInFixtures(predictedResolved, fixtureIdsByStage("quarter")),
+    sf: teamsInFixtures(predictedResolved, fixtureIdsByStage("semi")),
+    final: teamsInFixtures(predictedResolved, fixtureIdsByStage("final")),
+  };
+
+  const addPlacementLines = ({
+    actual,
+    predicted,
+    label,
+    detail,
+    points,
+  }: {
+    actual: Set<string>;
+    predicted: Set<string>;
+    label: string;
+    detail: (team: string) => string;
+    points: number;
+  }) => {
+    predicted.forEach((team) => {
+      if (actual.has(team)) {
+        addLine({
+          category: "placements",
+          label,
+          detail: detail(team),
+          points,
+          team,
+        });
+      }
+    });
+  };
+
+  addPlacementLines({
+    actual: teamsInFixtures(actualResolved, fixtureIdsByStage("round16")),
+    predicted: predictedSets.r16,
+    label: "Round-of-16 team",
+    detail: (team) => `${team} reached the Round of 16.`,
+    points: scoringRules.round16Participant,
+  });
+  addPlacementLines({
+    actual: teamsInFixtures(actualResolved, fixtureIdsByStage("quarter")),
+    predicted: predictedSets.qf,
+    label: "Quarter-finalist",
+    detail: (team) => `${team} reached the quarter-finals.`,
+    points: scoringRules.quarterFinalist,
+  });
+  addPlacementLines({
+    actual: teamsInFixtures(actualResolved, fixtureIdsByStage("semi")),
+    predicted: predictedSets.sf,
+    label: "Semi-finalist",
+    detail: (team) => `${team} reached the semi-finals.`,
+    points: scoringRules.semiFinalist,
+  });
+  addPlacementLines({
+    actual: teamsInFixtures(actualResolved, fixtureIdsByStage("final")),
+    predicted: predictedSets.final,
+    label: "Finalist",
+    detail: (team) => `${team} reached the final.`,
+    points: scoringRules.finalist,
+  });
+
   const finalResult = results.matches[104];
   const predictedFinal = predictedResolved.find((fixture) => fixture.id === 104);
   const finalPick = submission.picks[104];
