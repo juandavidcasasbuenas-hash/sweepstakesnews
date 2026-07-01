@@ -31,6 +31,7 @@ import {
   fallbackColorForName,
   initialsForName,
 } from "@/lib/avatars";
+import { canonicalTeamName } from "@/lib/team-flags";
 import {
   autofillTournament,
   calculateGroupStandings,
@@ -419,7 +420,7 @@ function bracketWinner(
 function matchupKey(team1: string, team2: string) {
   if (isPlaceholderTeam(team1) || isPlaceholderTeam(team2)) return "";
   return [team1, team2]
-    .map((team) => team.trim().toLowerCase())
+    .map((team) => (canonicalTeamName(team) ?? team.trim()).toLowerCase())
     .sort()
     .join("|");
 }
@@ -461,7 +462,10 @@ function resultOutcome(result?: TournamentResults["matches"][number]) {
 }
 
 function teamNameMatches(first?: string, second?: string) {
-  return Boolean(first && second && first.trim().toLowerCase() === second.trim().toLowerCase());
+  if (!first || !second) return false;
+  const canonicalFirst = canonicalTeamName(first) ?? first.trim();
+  const canonicalSecond = canonicalTeamName(second) ?? second.trim();
+  return canonicalFirst.toLowerCase() === canonicalSecond.toLowerCase();
 }
 
 function knockoutFixtureMatchesResult(
@@ -533,7 +537,7 @@ function scoreMatchPickBreakdown(
       pH > pA ? fixture.resolvedTeam1 :
       pA > pH ? fixture.resolvedTeam2 :
       (pick.winner ?? fixture.resolvedTeam1);
-    if (result.winner && pickWinner === result.winner)
+    if (result.winner && teamNameMatches(pickWinner, result.winner))
       lines.push({ label: "Correct winner", pts: scoringRules.knockoutWinner });
     if (pH === result.home)
       lines.push({ label: `${fixture.resolvedTeam1} goals`, pts: scoringRules.knockoutTeamGoals });

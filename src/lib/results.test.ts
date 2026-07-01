@@ -89,6 +89,44 @@ test("maps IR Iran to the Iran fixture", () => {
   assert.equal(results.matches[44], undefined);
 });
 
+test("canonicalizes provider team name variants", () => {
+  const results = normalizeGenericJson([
+    {
+      fixtureId: 83,
+      home_team: "Congo DR",
+      away_team: "Panama",
+      home_score: 2,
+      away_score: 1,
+      winner: "Congo DR",
+      status: "completed",
+    },
+    {
+      fixtureId: 78,
+      home_team: "Côte d'Ivoire",
+      away_team: "Netherlands",
+      home_score: 2,
+      away_score: 0,
+      winner: "Côte d'Ivoire",
+      status: "completed",
+    },
+    {
+      fixtureId: 25,
+      home_team: "Germany",
+      away_team: "Curaçao",
+      home_score: 1,
+      away_score: 0,
+      winner: "Germany",
+      status: "completed",
+    },
+  ]);
+
+  assert.equal(results.matches[83]?.team1, "DR Congo");
+  assert.equal(results.matches[83]?.winner, "DR Congo");
+  assert.equal(results.matches[78]?.team1, "Ivory Coast");
+  assert.equal(results.matches[78]?.winner, "Ivory Coast");
+  assert.equal(results.matches[25]?.team2, "Curaçao");
+});
+
 test("rejects a numeric fallback when its fixture contradicts supplied teams", () => {
   const results = normalizeGenericJson([
     {

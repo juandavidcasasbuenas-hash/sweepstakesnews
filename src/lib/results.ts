@@ -9,6 +9,7 @@ import {
   sampleResults,
 } from "@/lib/tournament";
 import { getSupabase } from "@/lib/supabase";
+import { canonicalTeamName } from "@/lib/team-flags";
 import type { Fixture, ResultMatch, TournamentResults } from "@/types/game";
 
 export const resultsRowId = "world-cup-2026";
@@ -146,7 +147,7 @@ function fixtureDisplayTeam(team?: string) {
 
 function localizeProviderTeam(providerTeam?: string, fixtureTeam?: string) {
   if (fixtureTeam && teamNamesEqual(providerTeam, fixtureTeam)) return fixtureTeam;
-  return providerTeam ?? fixtureTeam;
+  return (providerTeam ? canonicalTeamName(providerTeam) : undefined) ?? providerTeam ?? fixtureTeam;
 }
 
 function findFixtureByTeams(team1?: string, team2?: string) {

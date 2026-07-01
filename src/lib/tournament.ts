@@ -4,6 +4,7 @@ import {
   THIRD_PLACE_SLOT_FIXTURE_IDS,
 } from "@/data/third-place-allocation";
 import { fixtureKickoffDate } from "@/lib/fixture-time";
+import { canonicalTeamName } from "@/lib/team-flags";
 import type {
   BonusPicks,
   Fixture,
@@ -127,7 +128,10 @@ function outcome(home: number, away: number) {
 }
 
 function teamNameMatches(first?: string, second?: string) {
-  return Boolean(first && second && first.trim().toLowerCase() === second.trim().toLowerCase());
+  if (!first || !second) return false;
+  const canonicalFirst = canonicalTeamName(first) ?? first.trim();
+  const canonicalSecond = canonicalTeamName(second) ?? second.trim();
+  return canonicalFirst.toLowerCase() === canonicalSecond.toLowerCase();
 }
 
 function knockoutParticipantsMatchResult(
@@ -693,7 +697,7 @@ export function scoreSubmissionReceipt(
             pick,
           )
         : pick.winner;
-      if (pickWinner && result.winner && pickWinner === result.winner) {
+      if (pickWinner && result.winner && teamNameMatches(pickWinner, result.winner)) {
         addLine({
           category: "knockoutMatches",
           label: "Correct knockout winner",
@@ -883,7 +887,7 @@ export function scoreSubmissionReceipt(
       champion === predictedFinal.resolvedTeam1
         ? predictedFinal.resolvedTeam2
         : predictedFinal.resolvedTeam1;
-    if (champion === finalResult.winner) {
+    if (teamNameMatches(champion, finalResult.winner)) {
       addLine({
         category: "placements",
         label: "Champion",
@@ -895,8 +899,10 @@ export function scoreSubmissionReceipt(
       });
     }
     const actualRunner =
-      finalResult.winner === finalResult.team1 ? finalResult.team2 : finalResult.team1;
-    if (runnerUp && runnerUp === actualRunner) {
+      teamNameMatches(finalResult.winner, finalResult.team1)
+        ? finalResult.team2
+        : finalResult.team1;
+    if (runnerUp && teamNameMatches(runnerUp, actualRunner)) {
       addLine({
         category: "placements",
         label: "Runner-up",

@@ -101,6 +101,42 @@ test("knockout match points require the predicted teams to reach that fixture", 
   assert.equal(score.total, 0);
 });
 
+test("knockout scoring matches DR Congo against Congo DR provider names", () => {
+  const picks = createEmptyPicks();
+  const resolved = resolveFixtures(picks);
+  const fixture = resolved.find((item) => item.id === 83);
+  assert.ok(fixture);
+  assert.equal(fixture.resolvedTeam1, "DR Congo");
+  picks[83] = { fixtureId: 83, home: 2, away: 1 };
+
+  const submission: Submission = {
+    id: "congo-alias",
+    name: "Congo Alias",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    picks,
+    bonuses: emptyBonuses(),
+  };
+  const results: TournamentResults = {
+    matches: {
+      83: {
+        fixtureId: 83,
+        team1: "Congo DR",
+        team2: fixture.resolvedTeam2,
+        home: 2,
+        away: 1,
+        winner: "Congo DR",
+        status: "completed",
+      },
+    },
+    bonuses: emptyBonuses(),
+    updatedAt: "2026-07-02T00:00:00.000Z",
+  };
+
+  const score = scoreSubmission(submission, results);
+
+  assert.equal(score.knockoutMatches, 40);
+});
+
 test("round of 16 teams earn a deep-run bonus after the round of 32", () => {
   const picks = createEmptyPicks();
   Object.keys(picks).forEach((fixtureId) => {
