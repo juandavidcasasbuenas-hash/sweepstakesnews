@@ -41,6 +41,7 @@ import {
   emptyBonuses,
   FIRST_KICK_OFF_ISO,
   groupTeams,
+  nextStageTeamTally,
   qualifiedTeams,
   resolveFixtures,
   scoreSubmission,
@@ -1670,6 +1671,7 @@ function Leaderboard({
     .map((submission) => ({
       submission,
       score: scoreSubmission(submission, results),
+      nextStage: nextStageTeamTally(submission, results),
     }))
     .sort((a, b) => b.score.total - a.score.total || a.submission.name.localeCompare(b.submission.name));
 
@@ -1709,6 +1711,13 @@ function Leaderboard({
               >
                 <b>{row.score.exacts}</b>
                 <small>perfect</small>
+              </span>
+              <span
+                className="next-stage-count"
+                title={`${row.nextStage.label} correctly predicted`}
+              >
+                <b>{row.nextStage.count}</b>
+                <small>{row.nextStage.shortLabel}</small>
               </span>
               <b>{row.score.total}</b>
               <Eye size={16} />

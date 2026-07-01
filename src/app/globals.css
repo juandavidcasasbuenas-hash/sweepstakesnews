@@ -2032,7 +2032,7 @@ tr.third td:first-child {
 .leaderboard-row {
   width: 100%;
   display: grid;
-  grid-template-columns: 32px 44px minmax(0, 1fr) auto auto 18px;
+  grid-template-columns: 32px 44px minmax(0, 1fr) auto auto auto 18px;
   gap: 0.7rem;
   align-items: center;
   padding: 0.8rem 1rem;
@@ -2151,6 +2151,34 @@ tr.third td:first-child {
   letter-spacing: 0.07em;
   color: var(--muted);
   margin-top: 0;
+}
+
+.next-stage-count {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 1px;
+  min-width: 58px;
+  line-height: 1;
+}
+
+.next-stage-count b {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--green);
+}
+
+.leaderboard-row .next-stage-count small {
+  font-size: 0.56rem;
+  font-weight: 700;
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-top: 0;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .leaderboard-row svg {
@@ -5117,7 +5145,7 @@ tr.third td:first-child {
   }
 
   .leaderboard-row {
-    grid-template-columns: 26px 38px minmax(0, 1fr) auto auto;
+    grid-template-columns: 26px 38px minmax(0, 1fr) auto auto auto;
     gap: 0.55rem;
     padding: 0.7rem 0.75rem;
   }

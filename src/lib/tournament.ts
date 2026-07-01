@@ -69,6 +69,13 @@ export type ScoreReceipt = {
   lines: ScoreReceiptLine[];
 };
 
+export type NextStageTeamTally = {
+  label: string;
+  shortLabel: string;
+  count: number;
+  max: number;
+};
+
 const letters = "ABCDEFGHIJKL".split("");
 
 const fixturesInMatchNumberOrder = [...fixtures].sort((a, b) => {
@@ -579,6 +586,73 @@ function allResultsPresent(results: TournamentResults, ids: number[]) {
   return ids.every((id) => scoreComplete(results.matches[id]));
 }
 
+function fixtureIdsByStage(stage: string) {
+  return fixtures.filter((fixture) => fixture.stage === stage).map((fixture) => fixture.id);
+}
+
+function canonicalTeamKey(team: string) {
+  return (canonicalTeamName(team) ?? team.trim()).toLowerCase();
+}
+
+function teamsInFixtures(resolved: ResolvedFixture[], ids: number[]) {
+  return new Set(
+    resolved
+      .filter((fixture) => ids.includes(fixture.id))
+      .flatMap((fixture) => [fixture.resolvedTeam1, fixture.resolvedTeam2])
+      .filter((team) => !isPlaceholderTeam(team))
+      .map(canonicalTeamKey),
+  );
+}
+
+const nextStageMetrics = [
+  { source: "semi", target: "final", label: "Finalists", shortLabel: "Finalists", max: 2 },
+  { source: "quarter", target: "semi", label: "Semi-final teams", shortLabel: "SF Teams", max: 4 },
+  { source: "round16", target: "quarter", label: "Quarter-final teams", shortLabel: "QF Teams", max: 8 },
+  { source: "round32", target: "round16", label: "Round-of-16 teams", shortLabel: "RO16 Teams", max: 16 },
+] as const;
+
+function stageHasResult(results: TournamentResults, stage: Fixture["stage"]) {
+  return fixtureIdsByStage(stage).some((id) => scoreComplete(results.matches[id]));
+}
+
+export function nextStageTeamTally(
+  submission: Submission,
+  results: TournamentResults,
+): NextStageTeamTally {
+  const metric =
+    nextStageMetrics.find((item) => stageHasResult(results, item.source)) ??
+    { source: "group", target: "round32", label: "Round-of-32 teams", shortLabel: "RO32 Teams", max: 32 };
+
+  if (
+    metric.source === "group" &&
+    !allResultsPresent(results, groupFixtures().map((fixture) => fixture.id))
+  ) {
+    return {
+      label: metric.label,
+      shortLabel: metric.shortLabel,
+      count: 0,
+      max: metric.max,
+    };
+  }
+
+  const predictedResolved = resolveFixtures(submission.picks);
+  const actualResolved = resolveFixtures(results.matches);
+  const predicted = teamsInFixtures(predictedResolved, fixtureIdsByStage(metric.target));
+  const actual = teamsInFixtures(actualResolved, fixtureIdsByStage(metric.target));
+
+  let count = 0;
+  predicted.forEach((team) => {
+    if (actual.has(team)) count += 1;
+  });
+
+  return {
+    label: metric.label,
+    shortLabel: metric.shortLabel,
+    count,
+    max: metric.max,
+  };
+}
+
 const emptyReceiptCategories = (): Record<ScoreReceiptCategory, number> => ({
   groupMatches: 0,
   knockoutMatches: 0,
@@ -801,17 +875,8 @@ export function scoreSubmissionReceipt(
     }
   }
 
-  const fixtureIdsByStage = (stage: string) =>
-    fixtures.filter((fixture) => fixture.stage === stage).map((fixture) => fixture.id);
   const actualResolved = resolveFixtures(results.matches);
   const predictedResolved = resolveFixtures(submission.picks);
-  const teamsInFixtures = (resolved: ResolvedFixture[], ids: number[]) =>
-    new Set(
-      resolved
-        .filter((fixture) => ids.includes(fixture.id))
-        .flatMap((fixture) => [fixture.resolvedTeam1, fixture.resolvedTeam2])
-        .filter((team) => !isPlaceholderTeam(team)),
-    );
   const predictedSets = {
     r16: teamsInFixtures(predictedResolved, fixtureIdsByStage("round16")),
     qf: teamsInFixtures(predictedResolved, fixtureIdsByStage("quarter")),
@@ -832,8 +897,9 @@ export function scoreSubmissionReceipt(
     detail: (team: string) => string;
     points: number;
   }) => {
-    predicted.forEach((team) => {
-      if (actual.has(team)) {
+    predicted.forEach((teamKey) => {
+      if (actual.has(teamKey)) {
+        const team = canonicalTeamName(teamKey) ?? teamKey;
         addLine({
           category: "placements",
           label,

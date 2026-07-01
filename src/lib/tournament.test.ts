@@ -5,6 +5,7 @@ import {
   createFreshPicksDraft,
   emptyBonuses,
   groupFixtures,
+  nextStageTeamTally,
   resolveFixtures,
   scoringRules,
   scoreSubmission,
@@ -135,6 +136,45 @@ test("knockout scoring matches DR Congo against Congo DR provider names", () => 
   const score = scoreSubmission(submission, results);
 
   assert.equal(score.knockoutMatches, 40);
+});
+
+test("next-stage tally counts live round-of-16 teams for the leaderboard", () => {
+  const picks = createEmptyPicks();
+  Object.keys(picks).forEach((fixtureId) => {
+    picks[Number(fixtureId)] = { fixtureId: Number(fixtureId), home: 1, away: 0 };
+  });
+  const round32 = resolveFixtures(picks).find((fixture) => fixture.id === 73);
+  assert.ok(round32);
+
+  const submission: Submission = {
+    id: "r16-tally",
+    name: "R16 Tally",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    picks,
+    bonuses: emptyBonuses(),
+  };
+  const results: TournamentResults = {
+    matches: {
+      73: {
+        fixtureId: 73,
+        team1: round32.resolvedTeam1,
+        team2: round32.resolvedTeam2,
+        home: 1,
+        away: 0,
+        winner: round32.resolvedTeam1,
+        status: "completed",
+      },
+    },
+    bonuses: emptyBonuses(),
+    updatedAt: "2026-06-28T22:00:00.000Z",
+  };
+
+  assert.deepEqual(nextStageTeamTally(submission, results), {
+    label: "Round-of-16 teams",
+    shortLabel: "RO16 Teams",
+    count: 1,
+    max: 16,
+  });
 });
 
 test("round of 16 teams earn a deep-run bonus after the round of 32", () => {
