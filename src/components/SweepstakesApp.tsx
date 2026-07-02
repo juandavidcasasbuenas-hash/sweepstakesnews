@@ -1960,6 +1960,9 @@ function MatchDayView({
                 })
                 .sort(
                   (a, b) =>
+                    // Entrants who predicted this exact matchup have skin in the
+                    // game, so list them first; then by points, then name.
+                    Number(b.sameMatchup) - Number(a.sameMatchup) ||
                     (result ? b.points - a.points : 0) ||
                     a.submission.name.localeCompare(b.submission.name),
                 );
