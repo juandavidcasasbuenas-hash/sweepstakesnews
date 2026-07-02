@@ -172,25 +172,34 @@ function isLocked() {
   return Date.now() >= new Date(FIRST_KICK_OFF_ISO).getTime();
 }
 
-function formatFixtureDate(fixture: Pick<ResolvedFixture, "date" | "time">) {
-  return (fixtureKickoffDate(fixture) ?? new Date(`${fixture.date}T12:00:00Z`)).toLocaleDateString(
-    matchDayLocale,
-    {
-      month: "short",
-      day: "numeric",
-      timeZone: matchDayTimeZone,
-    },
-  );
+// Fixtures are grouped into "match nights" by their venue-local date: a game
+// kicking off at 02:00 UK time still belongs to the previous evening's slate.
+// Format the venue date directly (at UTC noon) so labels never drift a day.
+function formatMatchNight(date: string, options: Intl.DateTimeFormatOptions) {
+  return new Date(`${date}T12:00:00Z`).toLocaleDateString(matchDayLocale, {
+    ...options,
+    timeZone: "UTC",
+  });
 }
 
-function formatFixtureWeekday(fixture: Pick<ResolvedFixture, "date" | "time">) {
-  return (fixtureKickoffDate(fixture) ?? new Date(`${fixture.date}T12:00:00Z`)).toLocaleDateString(
-    matchDayLocale,
-    {
-      weekday: "short",
-      timeZone: matchDayTimeZone,
-    },
-  );
+function formatFixtureDate(fixture: Pick<ResolvedFixture, "date">) {
+  return formatMatchNight(fixture.date, { month: "short", day: "numeric" });
+}
+
+// True when the UK kickoff falls on the calendar day after the match night —
+// i.e. a late game that spills past midnight for viewers.
+function kickoffNextMorning(fixture: Pick<ResolvedFixture, "date" | "time">) {
+  const kickoff = fixtureKickoffDate(fixture);
+  return kickoff ? localDateKey(kickoff) > fixture.date : false;
+}
+
+function kickoffWeekday(fixture: Pick<ResolvedFixture, "date" | "time">) {
+  const kickoff = fixtureKickoffDate(fixture);
+  if (!kickoff) return "";
+  return kickoff.toLocaleDateString(matchDayLocale, {
+    weekday: "short",
+    timeZone: matchDayTimeZone,
+  });
 }
 
 function formatFixtureTime(fixture: Pick<ResolvedFixture, "date" | "time">) {
@@ -227,7 +236,9 @@ function localDateKey(date = new Date()) {
 
 function defaultMatchDate(fixtures: Array<Pick<ResolvedFixture, "date">>, now = new Date()) {
   const matchDates = Array.from(new Set(fixtures.map((fixture) => fixture.date))).sort();
-  const today = localDateKey(now);
+  // Shift the day boundary to 06:00 UK so the early hours still count as the
+  // previous match night (a 02:00 Sunday kickoff belongs to Saturday's slate).
+  const today = localDateKey(new Date(now.getTime() - 6 * 60 * 60 * 1000));
   return (
     matchDates.find((date) => date === today) ??
     matchDates.find((date) => date > today) ??
@@ -424,21 +435,6 @@ function matchupKey(team1: string, team2: string) {
     .map((team) => (canonicalTeamName(team) ?? team.trim()).toLowerCase())
     .sort()
     .join("|");
-}
-
-function ScoreTeamLabel({
-  team,
-  goals,
-}: {
-  team: string;
-  goals?: number | "";
-}) {
-  return (
-    <span className="score-team-label">
-      <TeamLabel team={team} />
-      {typeof goals === "number" ? <b>{goals}</b> : null}
-    </span>
-  );
 }
 
 function pickOutcome(pick?: MatchPick) {
@@ -1667,22 +1663,53 @@ function Leaderboard({
   onSelect: (submission: Submission) => void;
   ownSubmissionId?: string | null;
 }) {
+  const [sortBy, setSortBy] = useState<"total" | "exacts" | "nextStage">("total");
   const rows = submissions
     .map((submission) => ({
       submission,
       score: scoreSubmission(submission, results),
       nextStage: nextStageTeamTally(submission, results),
     }))
-    .sort((a, b) => b.score.total - a.score.total || a.submission.name.localeCompare(b.submission.name));
+    .sort(
+      (a, b) =>
+        (sortBy === "exacts"
+          ? b.score.exacts - a.score.exacts
+          : sortBy === "nextStage"
+            ? b.nextStage.count - a.nextStage.count
+            : 0) ||
+        b.score.total - a.score.total ||
+        a.submission.name.localeCompare(b.submission.name),
+    );
+  const nextStageLabel = rows[0]?.nextStage.shortLabel ?? "Next stage";
+  const sortOptions: Array<{ id: typeof sortBy; label: string }> = [
+    { id: "total", label: "Points" },
+    { id: "exacts", label: "Perfect scores" },
+    { id: "nextStage", label: nextStageLabel },
+  ];
 
   return (
     <section className="panel leaderboard-panel">
-      <div className="section-title">
+      <div className="section-title leaderboard-title-row">
         <span className="title-icon"><Trophy size={18} /></span>
         <div>
           <span className="eyebrow">Live scoring</span>
           <h2>Standings</h2>
         </div>
+        {rows.length > 1 ? (
+          <div className="lb-sort" role="group" aria-label="Sort standings by">
+            <span className="lb-sort-label">Sort</span>
+            {sortOptions.map((option) => (
+              <button
+                key={option.id}
+                className={sortBy === option.id ? "active" : ""}
+                onClick={() => setSortBy(option.id)}
+                aria-pressed={sortBy === option.id}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
       {rows.length === 0 ? (
         <p className="muted">No confirmed entries yet.</p>
@@ -1698,7 +1725,7 @@ function Leaderboard({
                 {index + 1}
               </span>
               <PlayerAvatar name={row.submission.name} size={44} />
-              <span>
+              <span className="lb-entrant">
                 <strong>{row.submission.name}</strong>
                 <small>
                   {row.submission.id === ownSubmissionId ? "Your entry · " : ""}
@@ -1727,6 +1754,58 @@ function Leaderboard({
       )}
     </section>
   );
+}
+
+const stageShortLabels: Record<string, string> = {
+  round32: "R32",
+  round16: "R16",
+  quarter: "QF",
+  semi: "Semi",
+  thirdPlace: "3rd place",
+  final: "Final",
+};
+
+function matchDayStageLabel(dayFixtures: ResolvedFixture[]) {
+  const first = dayFixtures[0];
+  if (!first) return "";
+  if (first.stage === "group") return "Groups";
+  return stageShortLabels[first.stage] ?? first.round;
+}
+
+// One-line summary of how the pool leans on a fixture: outcome counts for
+// group games, matchup-called counts for knockout ties (where predicted
+// pairings can differ from the real bracket).
+function matchdayConsensus(
+  rows: Array<{ pick?: MatchPick; fixture: ResolvedFixture; sameMatchup: boolean }>,
+  fixture: ResolvedFixture,
+  headTeam1: string,
+  headTeam2: string,
+) {
+  if (rows.length === 0) return "";
+
+  if (fixture.stage !== "group") {
+    if (headTeam1 === "TBC" || headTeam2 === "TBC") return "";
+    const called = rows.filter((row) => row.sameMatchup).length;
+    return `${called} of ${rows.length} predicted this matchup`;
+  }
+
+  let homeWins = 0;
+  let draws = 0;
+  let awayWins = 0;
+  rows.forEach(({ pick }) => {
+    if (!pick || typeof pick.home !== "number" || typeof pick.away !== "number") return;
+    if (pick.home > pick.away) homeWins += 1;
+    else if (pick.away > pick.home) awayWins += 1;
+    else draws += 1;
+  });
+  if (homeWins + draws + awayWins === 0) return "";
+
+  const parts = [
+    homeWins ? `${homeWins}× ${teamAbbreviation(headTeam1)}` : "",
+    draws ? `${draws}× draw` : "",
+    awayWins ? `${awayWins}× ${teamAbbreviation(headTeam2)}` : "",
+  ].filter(Boolean);
+  return `The room: ${parts.join(" · ")}`;
 }
 
 function MatchDayView({
@@ -1762,11 +1841,43 @@ function MatchDayView({
           days.set(fixture.date, group);
           return days;
         }, new Map<string, ResolvedFixture[]>()),
-      ).sort(([dateA], [dateB]) => dateA.localeCompare(dateB)),
+      )
+        .map(([date, dayFixtures]) =>
+          [
+            date,
+            [...dayFixtures].sort(
+              (a, b) =>
+                (fixtureKickoffDate(a)?.getTime() ?? 0) - (fixtureKickoffDate(b)?.getTime() ?? 0),
+            ),
+          ] as const,
+        )
+        .sort(([dateA], [dateB]) => dateA.localeCompare(dateB)),
     [fixtures],
   );
   const activeDate = selectedDate || matchDays[0]?.[0] || "";
   const activeFixtures = matchDays.find(([date]) => date === activeDate)?.[1] ?? [];
+  // Resolved after mount so server and client render the same markup; the
+  // 6-hour shift keeps the badge on the previous match night until 06:00 UK.
+  const [todayKey, setTodayKey] = useState("");
+  const stripRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      setTodayKey(localDateKey(new Date(Date.now() - 6 * 60 * 60 * 1000)));
+    });
+  }, []);
+
+  // Chip widths settle once results load and the Today badge mounts, so those
+  // are deliberate re-centre triggers alongside the selected date.
+  const hasResults = Object.keys(results.matches ?? {}).length > 0;
+  useEffect(() => {
+    const strip = stripRef.current;
+    const active = strip?.querySelector<HTMLButtonElement>("button.active");
+    if (!strip || !active) return;
+    strip.scrollTo({
+      left: active.offsetLeft - (strip.clientWidth - active.clientWidth) / 2,
+    });
+  }, [activeDate, hasResults, todayKey]);
 
   return (
     <section className="matchday-panel" aria-label="Match day predictions">
@@ -1780,18 +1891,32 @@ function MatchDayView({
         </div>
       </div>
 
-      <div className="matchday-strip" aria-label="Choose match date">
+      <div className="matchday-strip" aria-label="Choose match date" ref={stripRef}>
         {matchDays.map(([date, dayFixtures]) => {
-          const dateLabel = dayFixtures[0] ? formatFixtureDate(dayFixtures[0]) : date;
-          const weekdayLabel = dayFixtures[0] ? formatFixtureWeekday(dayFixtures[0]) : "";
+          const stageLabel = matchDayStageLabel(dayFixtures);
+          const resultsIn = dayFixtures.filter((fixture) => {
+            const result = results.matches[fixture.id];
+            return result && result.status !== "scheduled";
+          }).length;
           return (
             <button
               key={date}
               className={date === activeDate ? "active" : ""}
               onClick={() => onDateChange(date)}
             >
-              <span className="matchday-weekday">{weekdayLabel}</span>
-              <strong>{dateLabel}</strong>
+              <span className="matchday-weekday">
+                {formatMatchNight(date, { weekday: "short" })}
+                {date === todayKey ? <em className="matchday-today">Today</em> : null}
+              </span>
+              <strong>{formatMatchNight(date, { month: "short", day: "numeric" })}</strong>
+              <span className="matchday-day-meta">
+                {stageLabel} ·{" "}
+                {resultsIn === dayFixtures.length
+                  ? "done"
+                  : resultsIn
+                    ? `${resultsIn}/${dayFixtures.length} in`
+                    : `${dayFixtures.length} game${dayFixtures.length === 1 ? "" : "s"}`}
+              </span>
             </button>
           );
         })}
@@ -1813,12 +1938,32 @@ function MatchDayView({
           <div className="matchday-fixtures">
             {activeFixtures.map((fixture) => {
               const result = results.matches[fixture.id];
+              const headTeam1 = resolvedTeamOrTbc(fixture, "resolvedTeam1");
+              const headTeam2 = resolvedTeamOrTbc(fixture, "resolvedTeam2");
+              const headKey = matchupKey(headTeam1, headTeam2);
+              const nextMorning = kickoffNextMorning(fixture);
               const rows = submissions
                 .map((submission) => {
                   const resolved = resolveFixtures(submission.picks).find((item) => item.id === fixture.id) ?? fixture;
-                  return { submission, fixture: resolved, pick: submission.picks[fixture.id] };
+                  const pick = submission.picks[fixture.id];
+                  const sameMatchup =
+                    fixture.stage === "group" ||
+                    (Boolean(headKey) &&
+                      matchupKey(resolved.resolvedTeam1, resolved.resolvedTeam2) === headKey);
+                  return {
+                    submission,
+                    fixture: resolved,
+                    pick,
+                    sameMatchup,
+                    points: result ? scoreMatchPickBreakdown(pick, result, resolved).total : 0,
+                  };
                 })
-                .sort((a, b) => a.submission.name.localeCompare(b.submission.name));
+                .sort(
+                  (a, b) =>
+                    (result ? b.points - a.points : 0) ||
+                    a.submission.name.localeCompare(b.submission.name),
+                );
+              const consensus = matchdayConsensus(rows, fixture, headTeam1, headTeam2);
 
               return (
                 <article className="matchday-fixture" key={fixture.id}>
@@ -1827,13 +1972,18 @@ function MatchDayView({
                       <span className="match-chip">Match {displayMatchNumber(fixture)}</span>
                       <span>{fixture.round}</span>
                       <span className="venue-chip">{formatFixtureTime(fixture)}</span>
+                      {nextMorning ? (
+                        <span className="next-morning-chip" title="Kicks off after midnight UK time">
+                          {kickoffWeekday(fixture)} early hours
+                        </span>
+                      ) : null}
                       <span className={`result-pill${result ? " result-pill-in" : ""}`}>
                         {result ? resultOutcome(result) : "Upcoming"}
                       </span>
                     </div>
                     <div className="match-scoreline">
                       <div className="scoreline-home">
-                        <TeamLabel team={resolvedTeamOrTbc(fixture, "resolvedTeam1")} />
+                        <TeamLabel team={headTeam1} />
                       </div>
                       <div className="scoreline-box">
                         <b>{result != null ? result.home : "·"}</b>
@@ -1841,27 +1991,40 @@ function MatchDayView({
                         <b>{result != null ? result.away : "·"}</b>
                       </div>
                       <div className="scoreline-away">
-                        <TeamLabel team={resolvedTeamOrTbc(fixture, "resolvedTeam2")} />
+                        <TeamLabel team={headTeam2} />
                       </div>
                     </div>
+                    {consensus ? <p className="matchday-consensus">{consensus}</p> : null}
                   </div>
 
                   <div className="matchday-picks">
-                    {rows.map(({ submission, fixture: resolved, pick }) => {
+                    {rows.map(({ submission, fixture: resolved, pick, sameMatchup }) => {
                       const pickClass = matchPickClass(pick, result, resolved);
+                      const aligned = teamNameMatches(resolved.resolvedTeam1, headTeam1);
+                      const homeGoals = sameMatchup && !aligned ? pick?.away : pick?.home;
+                      const awayGoals = sameMatchup && !aligned ? pick?.home : pick?.away;
                       return (
                         <div
                           className={`matchday-pick${pickClass}${submission.id === ownSubmissionId ? " own-row" : ""}`}
                           key={submission.id}
                         >
-                          <span>
+                          <span className="pick-entrant">
                             <strong>{submission.name}</strong>
                             <small>{submission.id === ownSubmissionId ? "Your entry" : pickOutcome(pick)}</small>
                           </span>
-                          <span className="matchday-teams">
-                            <ScoreTeamLabel team={resolved.resolvedTeam1} goals={pick?.home} />
-                            <ScoreTeamLabel team={resolved.resolvedTeam2} goals={pick?.away} />
-                          </span>
+                          {sameMatchup ? (
+                            <span className="pick-scoreline" aria-label="Predicted score">
+                              <b>{homeGoals === "" || homeGoals === undefined ? "?" : homeGoals}</b>
+                              <span>–</span>
+                              <b>{awayGoals === "" || awayGoals === undefined ? "?" : awayGoals}</b>
+                            </span>
+                          ) : (
+                            <span className="pick-other-matchup" aria-label="Predicted a different matchup">
+                              <TeamLabelAbbr team={resolved.resolvedTeam1} />
+                              <b>{pickScore(pick)}</b>
+                              <TeamLabelAbbr team={resolved.resolvedTeam2} />
+                            </span>
+                          )}
                           {result ? (
                             <PtsBadge pick={pick} result={result} fixture={resolved} pickClass={pickClass} />
                           ) : (
