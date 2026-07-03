@@ -2,6 +2,15 @@
 !.env.example
 openAI.txt
 openai.txt
+OpenAI.txt
+
+# Local agent settings
+.claude/
+
+# Design inputs — private group chat log & reference images, not for the public repo
+# (root-anchored so they don't match src/app/game, src/lib/game, etc.)
+/game/
+/profiles/
 
 .next/
 node_modules/
