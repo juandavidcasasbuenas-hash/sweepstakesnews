@@ -50,19 +50,30 @@ function buildPrompt(args: {
   if (!dilemma || !choice) return null;
 
   const involved = new Set<MemberId>(dilemma.intro.map((l) => l.speaker).filter((s) => s !== "admin"));
-  const voiceCards = CHAT_MEMBERS.map((id) => `- ${id} (${CAST[id].name}, team "${CAST[id].teamName}"): ${CAST[id].voice}`).join("\n");
+  // A weak/fast model given 11 persona cards stitches catchphrases into word
+  // salad. Give it a small cast: everyone in the scene plus a few bystanders.
+  const bystanders = CHAT_MEMBERS.filter((id) => !involved.has(id)).sort(() => Math.random() - 0.5);
+  const onStage = [...involved, ...bystanders].slice(0, Math.max(6, involved.size + 3));
+  const voiceCards = onStage.map((id) => `- ${id} (${CAST[id].name}, team "${CAST[id].teamName}"): ${CAST[id].voice}`).join("\n");
 
   const system = [
-    "You write WhatsApp messages for a real World Cup sweepstakes group chat run by Juan, the 'Sweepstakes Administrator'.",
-    "British group-chat register: lowercase asides, dry sarcasm, emoji used sparingly but well, in-jokes about cheating, autofill, lawyering up, and the relegation zone.",
-    "THE CAST (use the id in the speaker field):",
+    "You write WhatsApp messages for a real World Cup sweepstakes group chat run by Juan, the 'Sweepstakes Administrator'. The admin has just ruled on a crisis; you write the group's replies.",
+    "British group-chat register: lowercase asides, dry sarcasm, emoji used sparingly but well.",
+    "THE CAST (use the id in the speaker field; only these people may speak):",
     voiceCards,
+    "HOW TO USE THE CAST NOTES: they describe attitude and history, not scripts. Express each person through WHAT they care about (fairness, receipts, being bottom, missing the match) and HOW they'd react to THIS ruling — don't recite their bio back. A running gag (accusing the admin of cheating, threatening legal action) may appear at most ONCE in the thread, and only when this crisis actually warrants it.",
     "Rules:",
-    "- 2-4 messages, each UNDER 90 characters. Punchy. One thought per message.",
-    "- The messages are a THREAD: the first replies directly to the admin's message; later ones react to BOTH the admin and the previous messages — pile on, quote a phrase back, contradict each other. It must read like a conversation, not four separate takes.",
-    "- Never speak as the admin, never invent new people, stay in each person's voice, no hashtags.",
-    "- 'ticker': one-line sensationalist tabloid headline (max 55 chars, ALL CAPS) for tomorrow's front page.",
-    "- 'reactions': 1-3 emoji the group slaps onto the admin's message (WhatsApp reactions). Match the mood: 👍❤️😂 if it landed, 😡🤬💀🧐 if it didn't.",
+    "- 2-4 messages, each UNDER 90 characters. Punchy. One complete thought per message — every message must make sense on its own to someone scrolling past.",
+    "- The messages are a THREAD about the admin's ruling: the first reacts to a SPECIFIC detail of what the admin just said. Later messages react to both the admin and earlier replies — pile on, contradict, escalate. No two messages may make the same point. At most ONE message may quote the admin's words back; the rest react in their own words.",
+    "- Write plain conversational English. No cryptic fragments, no 'X = Y' constructions, no non sequiturs. If a message would confuse a stranger reading the chat, rewrite it.",
+    "- Never speak as the admin, never invent new people or events, no hashtags.",
+    "- 'ticker': tomorrow's tabloid front-page headline (max 55 chars, ALL CAPS) about what the ADMIN just did. Must be a real readable headline, not a fragment.",
+    "- 'reactions': 1-3 single emoji the group slaps onto the admin's message (WhatsApp reactions). Match the mood of HOW IT LANDS: 👍❤️😂 if it landed, 😡🤬💀🧐 if it didn't.",
+    "Example of a GOOD thread (admin ruled 'late entries get zero points'):",
+    '  mike: "zero points" — see you in court',
+    "  chloe: finally, someone else joins me at the bottom 🥂",
+    "  mike: chloe this is serious. this is precedent.",
+    "Example of BAD messages (never write like this): 'lawyering up. silent admin = points glitch denied? 😡' — cryptic fragments bolted together.",
   ].join("\n");
 
   const chatSoFar = dilemma.intro
@@ -94,9 +105,12 @@ async function fromOpenAI(system: string, user: string): Promise<FalloutPayload>
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "gpt-5.4-nano",
-      reasoning: { effort: "none" },
-      max_output_tokens: 500,
+      // mini at "low" effort: nano (even with reasoning) writes cryptic
+      // fragment-speak and leans on cast catchphrases; mini is the smallest
+      // model that reliably produces a coherent in-character thread.
+      model: "gpt-5.4-mini",
+      reasoning: { effort: "low" },
+      max_output_tokens: 1200,
       instructions: system,
       input: user,
       text: {

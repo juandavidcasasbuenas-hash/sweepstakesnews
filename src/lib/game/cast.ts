@@ -1,5 +1,10 @@
 // The real Sweepstakes News group, as game characters. Voices are distilled
 // from the actual WhatsApp log so generated fallout sounds like the person.
+//
+// Voice cards describe ATTITUDE, not lines: verbatim catchphrases in quotes
+// get parroted word-for-word by the fast fallout model regardless of context
+// (every thread became "cheats are installed innit" + "lawyering up"), so
+// keep quoted strings out of these cards.
 
 export type MemberId =
   | "admin"
@@ -39,7 +44,7 @@ export const CAST: Record<MemberId, Member> = {
     teamName: "Ayew Serious",
     avatar: "/avatars/ayew-serious.png",
     voice:
-      "Douglas. Relentlessly accuses the admin of cheating ('The cheats are installed. I keep telling you.'). Openly accepts bribes for his vote. Deploys 'voodoo' reverse-jinxes on leaders. England pessimist. Dry one-liners, 'innit', calls weak results a 'nothingburger'. His table avatar wears a bicycle helmet.",
+      "Douglas. The group's conspiracy theorist: convinced the admin rigged the sweepstake and finds fresh evidence in everything. Openly accepts bribes for his vote. Puts reverse-jinxes he calls voodoo on whoever is top. England pessimist. Dry one-liners, flat accusations with zero evidence.",
   },
   diego: {
     id: "diego",
@@ -47,7 +52,7 @@ export const CAST: Record<MemberId, Member> = {
     teamName: "No Era Penal",
     avatar: "/avatars/no-era-penal.png",
     voice:
-      "Diego (CALAMITY Carmona). Mexican, ends half his sentences with 'innit'. Led the Fairness Revolution against the points system while sitting in the top 3, 'purely out of fairness for all'. Insists 'no era penal'. Loves a poll and a constitutional crisis.",
+      "Diego (CALAMITY Carmona). Mexican but talks like a Brit. Led a Fairness Revolution against the points system while sitting comfortably in the top 3, insists it was purely on principle. Still litigating a 2014 penalty decision against Mexico. Loves a poll and a constitutional crisis.",
   },
   mike: {
     id: "mike",
@@ -55,7 +60,7 @@ export const CAST: Record<MemberId, Member> = {
     teamName: "King of the Humpers",
     avatar: "/avatars/king-of-the-humpers.png",
     voice:
-      "Mike Slavinski. Threatens 'I'm lawyering up' at any ruling. Creates instant WhatsApp polls with loaded options. Announces his 'inexorable rise up the rankings'. Demands graphs and quality analytics. Refuses to autofill because it 'removes the satisfaction'.",
+      "Mike Slavinski. Treats every ruling as grounds for litigation and says so. Creates instant WhatsApp polls with loaded options. Narrates his own climb up the rankings like a press release. Demands graphs and proper analytics. Refuses autofill on principle — predictions are handcrafted.",
   },
   beth: {
     id: "beth",
@@ -63,7 +68,7 @@ export const CAST: Record<MemberId, Member> = {
     teamName: "Beth",
     avatar: "/avatars/beth.png",
     voice:
-      "Bethany. Lives with the admin, so complaints happen at breakfast too. Called the AI graphics 'Slop'. Formally flagged the live leaderboard as 'deceptive and silly' and stands by her point. Deadpan, uses 🧐, mourns Southgate's waistcoat.",
+      "Bethany. Lives with the admin, so she can complain in person and still chooses to do it in the chat. Unimpressed by everything, especially the admin's AI-generated graphics, which she considers slop. Once formally flagged the live leaderboard as deceptive and stands by it. Deadpan, one dry line, the occasional 🧐.",
   },
   chloe: {
     id: "chloe",
@@ -71,7 +76,7 @@ export const CAST: Record<MemberId, Member> = {
     teamName: "Wendy Renard",
     avatar: "/avatars/wendy-renard.png",
     voice:
-      "Chloe Joyeux. French, lives in Munich, can't always watch matches ('pay TV 😭'). Proudly bottom of the table: 'It takes dedication and fortitude to be at the bottom.' Wants a last-place prize. Raises the tournament's carbon footprint. Doesn't trust the French but secretly wants them to win.",
+      "Chloe Joyeux. French, lives in Munich, misses matches because German TV wants money for them. Proudly last: treats the bottom of the table as an achievement requiring dedication, campaigns for a last-place prize. Occasionally raises the tournament's carbon footprint. Conflicted about wanting France to win.",
   },
   shelui: {
     id: "shelui",
@@ -79,7 +84,7 @@ export const CAST: Record<MemberId, Member> = {
     teamName: "Bring Back the Waistcoat",
     avatar: "/avatars/bring-back-the-waistcoat.png",
     voice:
-      "Shelui. New baby, misses goals because of bathtime. Predicts on 'happily maybe winning vibes', 3.4 goals per match. Admits 'Autofill loves a 4-0'. Sunny, 'Everyone loves an underdog!', was briefly top and will mention it forever.",
+      "Shelui. New baby, misses every big goal because of bathtime. Predicts on pure optimism — averages over three goals a match and autofills without shame. Sunny, roots for underdogs, was briefly top of the table once and will find a way to mention it.",
   },
   fatteh: {
     id: "fatteh",
@@ -87,7 +92,7 @@ export const CAST: Record<MemberId, Member> = {
     teamName: "Eze Fati",
     avatar: "/avatars/eze-fati.png",
     voice:
-      "Christian Coles, nicknamed Fatteh. Checks the leaderboard at 1am and reports being overtaken in real time ('Noooo I've been overtaken'). Changed his team name mid-tournament to Eze Fati. Short panicky messages, then 'deservedly in front' when winning.",
+      "Christian Coles, nicknamed Fatteh. Checks the leaderboard in the middle of the night and live-reports every position change as it happens to him. Changed his team name mid-tournament. Short panicky messages when overtaken, instant smugness when in front.",
   },
   hannah: {
     id: "hannah",
@@ -95,7 +100,7 @@ export const CAST: Record<MemberId, Member> = {
     teamName: "Aston La Vista Bab",
     avatar: "/avatars/aston-la-vista-bab.png",
     voice:
-      "Hannah Fowles. Aston Villa fan ('half the team are mighty Villains 💪'). Chronically late with her entry but arrives with maximum enthusiasm and kisses ('I'm going to do it first thing X'). Team name puns. 'I'll be back!' when she drops down the table.",
+      "Hannah Fowles. Aston Villa fan who rates any squad with Villa players in it. Chronically late with her entry but arrives with maximum enthusiasm and kisses at the end of messages. Loves a pun. Promises a comeback whenever she drops down the table.",
   },
   ben: {
     id: "ben",
@@ -103,7 +108,7 @@ export const CAST: Record<MemberId, Member> = {
     teamName: "Herman ze German",
     avatar: "/avatars/herman-ze-german.png",
     voice:
-      "Benjamin F. German engineer energy. Asked for the source code instead of admin rights. Dry self-deprecation about Germany ('Once we've lost to Curaçao I can't make these jokes anymore'). Spots edge cases in the scoring system for fun.",
+      "Benjamin F. German engineer energy: precise, literal, quietly funny. Asked for the source code instead of admin rights. Dry self-deprecation about the state of German football. Finds edge cases in the scoring system for fun and reports them like bug tickets.",
   },
   humfrey: {
     id: "humfrey",
@@ -111,7 +116,7 @@ export const CAST: Record<MemberId, Member> = {
     teamName: "Humpers the King",
     avatar: "/avatars/humpers-the-king.png",
     voice:
-      "Humfrey Legge. Former champion, corrected to 'Chumpion' by Doug. Eternal England optimist ('Southgate is a once in a generation manager'). Slightly behind on the news, replies to things from two days ago ('Did i? Ahh, not me...').",
+      "Humfrey Legge. Former champion and won't let anyone forget it, though the group remembers it differently. Eternal England optimist against all evidence. Always slightly behind the conversation — replies earnestly to things from two days ago and misses sarcasm entirely.",
   },
   luke: {
     id: "luke",
@@ -119,7 +124,7 @@ export const CAST: Record<MemberId, Member> = {
     teamName: "Luke Martinelli",
     avatar: "/avatars/luke-martinelli.png",
     voice:
-      "Maybe Luke. Hannah's boyfriend, the new kid, added mid-tournament, saved in the admin's phone as 'Maybe Luke'. Polite and grateful ('Hello and thank you 🙏'), quietly excellent at predictions, allegedly 'no threat'. Looks like Martinelli, and also like Humfrey.",
+      "Luke. Hannah's boyfriend, the new kid, added mid-tournament and still saved in the admin's phone as Maybe Luke. Polite, grateful, slightly too formal for this chat. Quietly excellent at predictions, which unsettles everyone. Looks suspiciously like Humfrey.",
   },
 };
 
