@@ -32,6 +32,8 @@ import {
 type Screen = "intro" | "playing" | "report";
 type Mood = "typing" | "happy" | "celebrating" | "worried" | "panic" | "devastated";
 
+const MOODS: Mood[] = ["typing", "happy", "celebrating", "worried", "panic", "devastated"];
+
 interface Msg {
   id: number;
   speaker: MemberId;
@@ -349,7 +351,7 @@ function AdminCam({ mood, caption }: { mood: Mood; caption: string }) {
       {mood === "typing" && videoOk ? (
         <video
           src="/game/admin/typing.mp4"
-          poster="/game/admin/typing.jpg"
+          poster="/game/admin/typing.webp"
           autoPlay
           loop
           muted
@@ -358,7 +360,7 @@ function AdminCam({ mood, caption }: { mood: Mood; caption: string }) {
         />
       ) : (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={`/game/admin/${mood}.jpg`} alt={`The administrator, ${mood}`} />
+        <img src={`/game/admin/${mood}.webp`} alt={`The administrator, ${mood}`} decoding="async" />
       )}
       <figcaption>{caption}</figcaption>
     </figure>
@@ -426,7 +428,10 @@ function Gauges({ meters, impact }: { meters: Meters; impact: Meters | null }) {
 
 // ── Main component ──────────────────────────────────────────────────────────
 
-export default function AdministratorGame() {
+// `embedded` renders the game inside the main app (Admin Space tab), where the
+// arena hero already carries the artwork and the section title — so the big
+// SWEEPSTAKES NEWS masthead and cover image collapse into a compact dateline.
+export default function AdministratorGame({ embedded = false }: { embedded?: boolean }) {
   const [screen, setScreen] = useState<Screen>("intro");
   const [messages, setMessages] = useState<Msg[]>([]);
   const [meters, setMeters] = useState<Meters>(STARTING_METERS);
@@ -479,6 +484,11 @@ export default function AdministratorGame() {
   useEffect(() => {
     chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, typing, choicesOpen]);
+
+  // Warm the cache for every admin mood so switching reaction shots is instant.
+  useEffect(() => {
+    for (const m of MOODS) new Image().src = `/game/admin/${m}.webp`;
+  }, []);
 
   const pushMessage = useCallback(
     (line: ChatLine): number => {
@@ -560,6 +570,14 @@ export default function AdministratorGame() {
     sound.startTheme();
     void startRound(0, run);
   }, [sound, startRound]);
+
+  // Embedded in the app, the arena hero sits above the game — scroll it away
+  // when a run starts so the board owns the whole viewport.
+  useEffect(() => {
+    if (embedded && screen === "playing") {
+      document.querySelector(".adm-embedded")?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [embedded, screen]);
 
   // The run is over, but don't yank the player away from the last messages:
   // save the result and start the presses now, then wait for them to tap
@@ -815,30 +833,42 @@ export default function AdministratorGame() {
   if (screen === "intro") {
     return (
       <div className="adm-shell">
-        <header className="adm-masthead">
-          <span className="adm-masthead-date">{today} · WORTHING EDITION · STILL £1</span>
-          <h1>SWEEPSTAKES NEWS</h1>
-          <span className="adm-masthead-strap">THE PEOPLE&apos;S TOURNAMENT PAPER · EST. 2018</span>
-        </header>
+        {embedded ? (
+          <header className="adm-dateline">
+            <span className="adm-edition-chip">EDITION #{edition}</span>
+            <span className="adm-dateline-text">{today} · WORTHING EDITION · STILL £1</span>
+          </header>
+        ) : (
+          <header className="adm-masthead">
+            <span className="adm-masthead-date">{today} · WORTHING EDITION · STILL £1</span>
+            <h1>SWEEPSTAKES NEWS</h1>
+            <span className="adm-masthead-strap">THE PEOPLE&apos;S TOURNAMENT PAPER · EST. 2018</span>
+          </header>
+        )}
         <div className="adm-cover">
-          <div className="adm-cover-hero">
-            {heroOk && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src="/game/desk.jpg"
-                alt="The Administrator at his desk in Worthing, spreadsheet aglow"
-                onError={() => setHeroOk(false)}
-              />
-            )}
-            <div className="adm-cover-plate">
-              <span className="adm-edition-chip">EDITION #{edition}</span>
-              <h2>
-                SWEEPSTAKES NEWS
-                <br />
-                ADMINISTRATOR
-              </h2>
+          {!embedded && (
+            <div className="adm-cover-hero">
+              {heroOk && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src="/game/desk.webp"
+                  alt="The Administrator at his desk in Worthing, spreadsheet aglow"
+                  width={1376}
+                  height={768}
+                  fetchPriority="high"
+                  onError={() => setHeroOk(false)}
+                />
+              )}
+              <div className="adm-cover-plate">
+                <span className="adm-edition-chip">EDITION #{edition}</span>
+                <h2>
+                  SWEEPSTAKES NEWS
+                  <br />
+                  ADMINISTRATOR
+                </h2>
+              </div>
             </div>
-          </div>
+          )}
           <p className="adm-cover-lede">
             You are the admin. Eleven players, one spreadsheet, a group chat that smells blood. Survive{" "}
             <strong>{ROUNDS_PER_RUN} crises</strong> from the real chat.
@@ -876,12 +906,21 @@ export default function AdministratorGame() {
     return (
       <div className="adm-shell">
         <div className="adm-report">
-          <header className="adm-masthead adm-masthead-report">
-            <span className="adm-masthead-date">
-              {today} · EDITION #{edition} · INCIDENT REPORT
-            </span>
-            <h1>SWEEPSTAKES NEWS</h1>
-          </header>
+          {embedded ? (
+            <header className="adm-dateline">
+              <span className="adm-edition-chip">INCIDENT REPORT</span>
+              <span className="adm-dateline-text">
+                {today} · EDITION #{edition}
+              </span>
+            </header>
+          ) : (
+            <header className="adm-masthead adm-masthead-report">
+              <span className="adm-masthead-date">
+                {today} · EDITION #{edition} · INCIDENT REPORT
+              </span>
+              <h1>SWEEPSTAKES NEWS</h1>
+            </header>
+          )}
           <h2 className="adm-report-headline">{collapse ? collapse.headline : "ADMIN SURVIVES THE IMPOSSIBLE"}</h2>
           <p className="adm-report-detail">
             {collapse

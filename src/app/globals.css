@@ -380,6 +380,78 @@ h1 {
   text-shadow: 0 4px 32px rgba(0, 0, 0, 0.6);
 }
 
+/* Kicker chip + strapline — used by heroes that carry a sub-brand (Admin Space) */
+.hero-kicker {
+  display: inline-block;
+  margin-bottom: 0.7rem;
+  padding: 0.3rem 0.6rem;
+  background: var(--red);
+  color: #ffffff;
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.hero-strap {
+  display: block;
+  margin-top: 0.85rem;
+  color: rgba(255, 255, 255, 0.82);
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Game hero: the desk illustration is packed with references, so nothing
+   overlays it — a black masthead band carries the title, the artwork runs
+   full and uncropped below it. */
+/* Doubled class beats the responsive .hero padding/height overrides. */
+.hero.hero-game {
+  height: auto;
+  display: block;
+  padding: 0;
+}
+
+.hero-game-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.5rem;
+  padding: 1.05rem clamp(1.5rem, 4vw, 3.5rem) 1rem;
+}
+
+.hero-game-title {
+  padding-left: clamp(0.9rem, 1.4vw, 1.4rem);
+  border-left: 4px solid var(--red);
+  animation: heroEnter 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hero-game-title .hero-kicker {
+  margin-bottom: 0.45rem;
+}
+
+.hero-game-title h1 {
+  margin: 0;
+  font-size: clamp(2.2rem, 4vw, 3.6rem);
+  line-height: 0.9;
+  text-shadow: none;
+}
+
+.hero-game .hero-strap {
+  margin-top: 0;
+  text-align: right;
+}
+
+.hero-game-art {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .hero-quote {
   max-width: 620px;
   margin: 0.9rem 0 0;
@@ -6118,6 +6190,77 @@ tr.third td:first-child {
 .adm-page {
   min-height: 100vh;
   background: var(--bg);
+}
+
+/* Game rendered inside the main app layout (Admin Space tab). The arena hero
+   already shows the artwork and the section title, so the embedded game swaps
+   its big masthead + cover image for a compact dateline and leads with the
+   lede + TAKE OFFICE button. */
+.adm-page.adm-embedded {
+  min-height: 0;
+}
+
+.adm-embedded .adm-shell {
+  padding-top: 1.4rem;
+}
+
+.adm-dateline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 4px double var(--fg);
+  margin-bottom: 1.4rem;
+}
+
+.adm-dateline .adm-edition-chip {
+  margin-bottom: 0;
+}
+
+.adm-dateline-text {
+  color: var(--muted-strong);
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.adm-embedded .adm-cover {
+  gap: 1.25rem;
+}
+
+.adm-embedded .adm-cover-lede {
+  max-width: 620px;
+  font-size: 1.18rem;
+  line-height: 1.55;
+}
+
+/* While playing, the board owns the viewport (begin() scrolls the hero away).
+   Below 1080px the rail is a sticky top bar, so leave room for it. */
+.adm-embedded .adm-shell-playing {
+  height: 100dvh;
+}
+
+@media (max-width: 1080px) {
+  .adm-embedded {
+    scroll-margin-top: 84px;
+  }
+
+  .adm-embedded .adm-shell-playing {
+    height: calc(100dvh - 84px);
+  }
+}
+
+/* ≤900px the game switches to its flowing mobile layout (height: auto,
+   chat pane capped) — just trim the min-height for the sticky rail bar. */
+@media (max-width: 900px) {
+  .adm-embedded .adm-shell-playing {
+    height: auto;
+    min-height: calc(100dvh - 84px);
+  }
 }
 
 .adm-shell {

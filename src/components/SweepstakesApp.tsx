@@ -20,6 +20,7 @@ import {
   Trophy,
   X,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -77,7 +78,11 @@ const blankResults: TournamentResults = {
 };
 const liveResultsPollMs = 60_000;
 
-type Tab = "predict" | "matchday" | "currentRO32" | "leaderboard" | "rules" | "titlerace" | "goals" | "insights";
+const AdministratorGame = dynamic(() => import("@/components/game/AdministratorGame"), {
+  ssr: false,
+});
+
+type Tab = "predict" | "matchday" | "currentRO32" | "leaderboard" | "rules" | "titlerace" | "goals" | "insights" | "game";
 type EntryViewTab = "summary" | "groups" | "bracket";
 type PredictionStep = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "round32" | "round16" | "quarter" | "semi" | "thirdPlace" | "final";
 type ResultsPayload = {
@@ -3227,9 +3232,18 @@ export default function SweepstakesApp({
     { key: "titlerace", label: "Title race", icon: <CarFront size={18} /> },
     { key: "goals", label: "Goals & assists", icon: <Medal size={18} /> },
     { key: "insights", label: "Fun facts", icon: <CircleQuestionMark size={18} /> },
+    {
+      key: "game",
+      label: "Admin Space",
+      icon: (
+        <span aria-hidden="true" style={{ fontSize: "1.1rem", lineHeight: 1 }}>
+          🎮
+        </span>
+      ),
+    },
   ];
 
-  const heroData: Record<Tab, { h1: string }> = {
+  const heroData: Record<Tab, { h1: string; kicker?: string; strap?: string }> = {
     predict: {
       h1: freshMode ? "Fresh\nPicks" : hasSubmittedEntry ? "Your\nPicks" : "Predict\nAll 104",
     },
@@ -3253,6 +3267,11 @@ export default function SweepstakesApp({
     },
     insights: {
       h1: "Fun\nFacts",
+    },
+    game: {
+      h1: "Admin Space",
+      kicker: "Sweepstakes News presents",
+      strap: "Survive the group chat · New edition daily",
     },
   };
   const activeHero = heroData[tab];
@@ -3367,21 +3386,43 @@ export default function SweepstakesApp({
       </aside>
 
       <div className="arena-main">
-        <section className="hero" key={`hero-${tab}`}>
-          <Image
-            src={heroImage}
-            alt=""
-            fill
-            priority
-            sizes="(min-width: 900px) calc(100vw - 236px), 100vw"
-            className="hero-image"
-          />
-          <div className="hero-overlay" />
-          <div className="hero-grid" aria-hidden="true" />
-          <div className="hero-content">
-            <h1>{activeHero.h1}</h1>
-          </div>
-        </section>
+        {tab === "game" ? (
+          /* Game hero: masthead band on top, artwork full and unobstructed below. */
+          <section className="hero hero-game" key="hero-game">
+            <div className="hero-game-bar">
+              <div className="hero-game-title">
+                <span className="hero-kicker">{activeHero.kicker}</span>
+                <h1>{activeHero.h1}</h1>
+              </div>
+              <span className="hero-strap">{activeHero.strap}</span>
+            </div>
+            <Image
+              src="/game/desk.webp"
+              alt="The Administrator at his desk in Worthing, spreadsheet aglow"
+              width={1376}
+              height={768}
+              priority
+              sizes="(min-width: 900px) calc(100vw - 236px), 100vw"
+              className="hero-game-art"
+            />
+          </section>
+        ) : (
+          <section className="hero" key={`hero-${tab}`}>
+            <Image
+              src={heroImage}
+              alt=""
+              fill
+              priority
+              sizes="(min-width: 900px) calc(100vw - 236px), 100vw"
+              className="hero-image"
+            />
+            <div className="hero-overlay" />
+            <div className="hero-grid" aria-hidden="true" />
+            <div className="hero-content">
+              <h1>{activeHero.h1}</h1>
+            </div>
+          </section>
+        )}
 
         {tab === "titlerace" ? (
           <TitleRaceFrame src={recapHref} />
@@ -3389,6 +3430,10 @@ export default function SweepstakesApp({
           <GoalsAssists embedded tournament={tournament} submissions={submissions} />
         ) : tab === "insights" ? (
           <PredictionInsights embedded tournament={tournament} />
+        ) : tab === "game" ? (
+          <div className="adm-page adm-embedded">
+            <AdministratorGame embedded />
+          </div>
         ) : (
         <div className="app-shell">
           <div className="main-column">
