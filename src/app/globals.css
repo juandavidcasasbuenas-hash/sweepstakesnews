@@ -1971,9 +1971,10 @@ tr.third td:first-child {
 .current-ro32-owners {
   display: grid;
   grid-template-columns: minmax(190px, max-content) minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr);
   align-items: center;
   gap: 0.45rem;
-  height: 3.15rem;
+  height: 6.4rem;
   margin-top: 0.7rem;
   padding: 0.5rem 0.6rem;
   border: 1px dashed var(--line-strong);
@@ -2022,21 +2023,22 @@ tr.third td:first-child {
 
 .current-ko-owner-groups {
   display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
+  align-content: flex-start;
+  align-items: flex-start;
+  flex-wrap: wrap;
   gap: 0.35rem;
+  height: 100%;
   min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 0.1rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 0.2rem;
   scrollbar-width: thin;
 }
 
 .current-ko-owner-group {
   display: inline-flex;
   align-items: center;
-  flex: 0 0 auto;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 0.25rem;
   min-width: 0;
   padding-left: 0.35rem;
@@ -2052,6 +2054,12 @@ tr.third td:first-child {
   line-height: 1.2;
   text-transform: uppercase;
   white-space: nowrap;
+}
+
+.current-ko-owner-groups .current-ro32-predictor-pill {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .current-ro32-owners-clear {
@@ -5233,7 +5241,7 @@ tr.third td:first-child {
   .current-ro32-owners {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: start;
-    height: 4.8rem;
+    height: 7.8rem;
   }
 
   .current-ro32-owners-summary {
