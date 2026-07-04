@@ -2513,9 +2513,16 @@ function CurrentRound32({
         .filter(Boolean) as ResolvedFixture[],
     [currentResolved],
   );
+  const round16Fixtures = useMemo(
+    () =>
+      BRACKET_ORDER.round16
+        .map((id) => currentResolved.find((fixture) => fixture.id === id))
+        .filter(Boolean) as ResolvedFixture[],
+    [currentResolved],
+  );
   const predictorNamesByFixture = useMemo(() => {
     const currentKeys = new Map(
-      round32Fixtures.map((fixture) => [
+      round16Fixtures.map((fixture) => [
         fixture.id,
         matchupKey(fixture.resolvedTeam1, fixture.resolvedTeam2),
       ]),
@@ -2524,7 +2531,7 @@ function CurrentRound32({
 
     submissions.forEach((submission) => {
       const predictedResolved = resolveFixtures(submission.picks);
-      round32Fixtures.forEach((currentFixture) => {
+      round16Fixtures.forEach((currentFixture) => {
         const currentKey = currentKeys.get(currentFixture.id);
         const predictedFixture = predictedResolved.find((fixture) => fixture.id === currentFixture.id);
         if (
@@ -2540,7 +2547,7 @@ function CurrentRound32({
     });
 
     return namesByFixture;
-  }, [round32Fixtures, submissions]);
+  }, [round16Fixtures, submissions]);
   const knockoutResults = Object.values(results.matches ?? {}).filter((match) => {
     const fixture = currentResolved.find((item) => item.id === match.fixtureId);
     return fixture && fixture.stage !== "group";
@@ -2625,8 +2632,8 @@ function CurrentRound32({
         <Bracket fixtures={currentResolved} picks={results.matches} mode="current" />
       </div>
 
-      <div className="current-ro32-fixtures" aria-label="Current Round of 32 fixtures">
-        {round32Fixtures.map((fixture) => {
+      <div className="current-ro32-fixtures" aria-label="Current Round of 16 fixtures">
+        {round16Fixtures.map((fixture) => {
           const result = results.matches[fixture.id];
           const homeLabel = bracketTeamLabel(fixture.resolvedTeam1);
           const awayLabel = bracketTeamLabel(fixture.resolvedTeam2);
