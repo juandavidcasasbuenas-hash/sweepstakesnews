@@ -2422,14 +2422,109 @@ const BRACKET_COLS = [
   { stage: "final" as const, label: "Final" },
 ];
 
+const TEAM_RUN_STAGES = [
+  { stage: "round32" as const, label: "RO32", rank: 1 },
+  { stage: "round16" as const, label: "RO16", rank: 2 },
+  { stage: "quarter" as const, label: "QF", rank: 3 },
+  { stage: "semi" as const, label: "SF", rank: 4 },
+  { stage: "final" as const, label: "Finalist", rank: 5 },
+];
+
+const CHAMPION_RUN = { label: "Champion", rank: 6 };
+
+type TeamRun = {
+  label: string;
+  rank: number;
+};
+
+type TeamRunOwner = TeamRun & {
+  name: string;
+};
+
+function fixtureContainsTeam(fixture: ResolvedFixture, team: string) {
+  return teamNameMatches(fixture.resolvedTeam1, team) || teamNameMatches(fixture.resolvedTeam2, team);
+}
+
+function resultWinnerMatchesTeam(fixture: ResolvedFixture | undefined, pick: MatchPick | ResultMatch | undefined, team: string) {
+  if (!fixture || !pick || typeof pick.home !== "number" || typeof pick.away !== "number") return false;
+  if (pick.winner) return teamNameMatches(pick.winner, team);
+  if (pick.home > pick.away) return teamNameMatches(fixture.resolvedTeam1, team);
+  if (pick.away > pick.home) return teamNameMatches(fixture.resolvedTeam2, team);
+  return false;
+}
+
+function teamRunInBracket(
+  fixtures: ResolvedFixture[],
+  picks: Record<number, MatchPick | ResultMatch | undefined>,
+  team: string,
+): TeamRun | null {
+  let run: TeamRun | null = null;
+
+  TEAM_RUN_STAGES.forEach(({ stage, label, rank }) => {
+    const ids = BRACKET_ORDER[stage] as readonly number[];
+    const hasTeam = ids.some((id) => {
+      const fixture = fixtures.find((item) => item.id === id);
+      return fixture ? fixtureContainsTeam(fixture, team) : false;
+    });
+    if (hasTeam) run = { label, rank };
+  });
+
+  const finalFixture = fixtures.find((fixture) => fixture.id === BRACKET_ORDER.final[0]);
+  if (resultWinnerMatchesTeam(finalFixture, picks[BRACKET_ORDER.final[0]], team)) {
+    run = CHAMPION_RUN;
+  }
+
+  return run;
+}
+
+function BracketTeam({
+  label,
+  focusTeam,
+  selectedTeam,
+  onTeamHover,
+  onTeamClick,
+}: {
+  label: string;
+  focusTeam?: string | null;
+  selectedTeam?: string | null;
+  onTeamHover?: (team: string | null) => void;
+  onTeamClick?: (team: string) => void;
+}) {
+  if (!onTeamClick || label === "TBC") return <TeamLabel team={label} />;
+  const active = Boolean(focusTeam && teamNameMatches(focusTeam, label));
+  const selected = Boolean(selectedTeam && teamNameMatches(selectedTeam, label));
+  return (
+    <button
+      type="button"
+      className={`bk-team-btn${active ? " bk-team-btn-focus" : ""}${selected ? " bk-team-btn-selected" : ""}`}
+      onClick={() => onTeamClick(label)}
+      onMouseEnter={onTeamHover ? () => onTeamHover(label) : undefined}
+      onMouseLeave={onTeamHover ? () => onTeamHover(null) : undefined}
+      onFocus={onTeamHover ? () => onTeamHover(label) : undefined}
+      onBlur={onTeamHover ? () => onTeamHover(null) : undefined}
+      aria-pressed={selected}
+    >
+      <TeamLabel team={label} />
+    </button>
+  );
+}
+
 function Bracket({
   fixtures: resolved,
   picks,
   mode = "prediction",
+  focusTeam,
+  selectedTeam,
+  onTeamHover,
+  onTeamClick,
 }: {
   fixtures: ResolvedFixture[];
   picks: Record<number, MatchPick | ResultMatch | undefined>;
   mode?: "prediction" | "current";
+  focusTeam?: string | null;
+  selectedTeam?: string | null;
+  onTeamHover?: (team: string | null) => void;
+  onTeamClick?: (team: string) => void;
 }) {
   const byId = new Map(resolved.map((f) => [f.id, f]));
 
@@ -2467,12 +2562,24 @@ function Bracket({
                           </small>
                         ) : null}
                         <div className={`bk-team-line${winner === fx.resolvedTeam1 ? " bk-team-winner" : ""}`}>
-                          <TeamLabel team={homeLabel} />
+                          <BracketTeam
+                            label={homeLabel}
+                            focusTeam={focusTeam}
+                            selectedTeam={selectedTeam}
+                            onTeamHover={onTeamHover}
+                            onTeamClick={onTeamClick}
+                          />
                           <b>{bracketScoreValue(pick?.home, mode)}</b>
                         </div>
                         <div className="bk-hr" />
                         <div className={`bk-team-line${winner === fx.resolvedTeam2 ? " bk-team-winner" : ""}`}>
-                          <TeamLabel team={awayLabel} />
+                          <BracketTeam
+                            label={awayLabel}
+                            focusTeam={focusTeam}
+                            selectedTeam={selectedTeam}
+                            onTeamHover={onTeamHover}
+                            onTeamClick={onTeamClick}
+                          />
                           <b>{bracketScoreValue(pick?.away, mode)}</b>
                         </div>
                         {typeof pick?.home === "number" && pick.home === pick.away ? (
@@ -2506,6 +2613,9 @@ function CurrentRound32({
 }) {
   const currentResolved = useMemo(() => resolveFixtures(results.matches), [results.matches]);
   const currentQualified = useMemo(() => qualifiedTeams(results.matches), [results.matches]);
+  const [pinnedTeam, setPinnedTeam] = useState<string | null>(null);
+  const [hoverTeam, setHoverTeam] = useState<string | null>(null);
+  const focusTeam = hoverTeam ?? pinnedTeam;
   const round32Fixtures = useMemo(
     () =>
       BRACKET_ORDER.round32
@@ -2559,6 +2669,33 @@ function CurrentRound32({
       .flatMap((fixture) => [fixture.resolvedTeam1, fixture.resolvedTeam2])
       .filter((team) => !isPlaceholderTeam(team)),
   );
+  const focusCurrentRun = focusTeam ? teamRunInBracket(currentResolved, results.matches, focusTeam) : null;
+  const focusOwners = useMemo<TeamRunOwner[]>(() => {
+    if (!focusTeam || !focusCurrentRun) return [];
+    return submissions
+      .map((submission) => {
+        const predictedRun = teamRunInBracket(resolveFixtures(submission.picks), submission.picks, focusTeam);
+        if (!predictedRun || predictedRun.rank < focusCurrentRun.rank) return null;
+        return {
+          name: submission.name,
+          label: predictedRun.label,
+          rank: predictedRun.rank,
+        };
+      })
+      .filter((item): item is TeamRunOwner => Boolean(item))
+      .sort((a, b) => b.rank - a.rank || a.name.localeCompare(b.name));
+  }, [focusCurrentRun, focusTeam, submissions]);
+  const focusOwnerGroups = useMemo(() => {
+    const groups = new Map<number, { label: string; owners: string[] }>();
+    focusOwners.forEach((owner) => {
+      const group = groups.get(owner.rank) ?? { label: owner.label, owners: [] };
+      group.owners.push(owner.name);
+      groups.set(owner.rank, group);
+    });
+    return Array.from(groups.entries())
+      .sort(([rankA], [rankB]) => rankB - rankA)
+      .map(([, group]) => group);
+  }, [focusOwners]);
   const nextFixture =
     round32Fixtures.find((fixture) => !results.matches[fixture.id]) ??
     currentResolved.find((fixture) => fixture.stage !== "group" && !results.matches[fixture.id]);
@@ -2629,7 +2766,62 @@ function CurrentRound32({
           </div>
           <p>Built from the current results feed and live group standings.</p>
         </div>
-        <Bracket fixtures={currentResolved} picks={results.matches} mode="current" />
+        <div className="current-ro32-owners" aria-live="polite">
+          {focusTeam ? (
+            <>
+              <div className="current-ro32-owners-summary">
+                <TeamPill team={focusTeam}>{focusTeam}</TeamPill>
+                <span className="current-ro32-owners-count">
+                  {focusOwners.length
+                    ? `${focusOwners.length} of ${submissions.length} still have them`
+                    : "No entries still have them"}
+                </span>
+                {focusCurrentRun ? (
+                  <span className="current-ro32-owners-threshold">
+                    needs {focusCurrentRun.label}+
+                  </span>
+                ) : null}
+              </div>
+              {focusOwnerGroups.length ? (
+                <div className="current-ko-owner-groups">
+                  {focusOwnerGroups.map((group) => (
+                    <div className="current-ko-owner-group" key={`${focusTeam}-${group.label}`}>
+                      <span className="current-ko-owner-stage">{group.label}</span>
+                      {group.owners.map((name) => (
+                        <span className="current-ro32-predictor-pill" key={`${focusTeam}-${group.label}-${name}`}>
+                          {name}
+                        </span>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {pinnedTeam ? (
+                <button
+                  type="button"
+                  className="current-ro32-owners-clear"
+                  onClick={() => setPinnedTeam(null)}
+                  aria-label="Clear selected team"
+                >
+                  <X size={12} />
+                </button>
+              ) : null}
+            </>
+          ) : (
+            <span className="current-ro32-owners-hint">
+              Hover or tap any team below to see who still has it alive in their bracket.
+            </span>
+          )}
+        </div>
+        <Bracket
+          fixtures={currentResolved}
+          picks={results.matches}
+          mode="current"
+          focusTeam={focusTeam}
+          selectedTeam={pinnedTeam}
+          onTeamHover={setHoverTeam}
+          onTeamClick={(team) => setPinnedTeam((prev) => (prev === team ? null : team))}
+        />
       </div>
 
       <div className="current-ro32-fixtures" aria-label="Current Round of 16 fixtures">

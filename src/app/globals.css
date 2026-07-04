@@ -1968,6 +1968,101 @@ tr.third td:first-child {
   text-align: right;
 }
 
+.current-ro32-owners {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-height: 2.35rem;
+  margin-top: 0.7rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px dashed var(--line-strong);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.current-ro32-owners-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.current-ro32-owners-hint {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-style: italic;
+  line-height: 1.35;
+}
+
+.current-ro32-owners-count {
+  color: var(--muted-strong);
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.current-ro32-owners-threshold {
+  padding: 0.12rem 0.4rem;
+  border: 1px solid var(--line);
+  background: var(--bg-card);
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.current-ko-owner-groups {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.current-ko-owner-group {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-width: 0;
+  padding-left: 0.35rem;
+  border-left: 2px solid var(--line-strong);
+}
+
+.current-ko-owner-stage {
+  color: var(--fg);
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.current-ro32-owners-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--muted-strong);
+  cursor: pointer;
+}
+
+.current-ro32-owners-clear:hover {
+  color: var(--red);
+  border-color: var(--red);
+}
+
 .current-ro32-fixtures {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -4085,6 +4180,33 @@ tr.third td:first-child {
   font-family: var(--font-display), Impact, sans-serif;
   font-size: 0.86rem;
   font-weight: 700;
+}
+
+.bk-team-btn {
+  display: flex;
+  min-width: 0;
+  margin: -0.1rem -0.25rem;
+  padding: 0.1rem 0.25rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.bk-team-btn:hover,
+.bk-team-btn:focus-visible,
+.bk-team-btn-focus {
+  background: var(--gold-light);
+  box-shadow: inset 0 0 0 1px var(--gold);
+}
+
+.bk-team-btn-selected {
+  background: var(--gold-light);
+  box-shadow: inset 0 0 0 2px var(--gold);
 }
 
 .bk-team-winner .team-label,
