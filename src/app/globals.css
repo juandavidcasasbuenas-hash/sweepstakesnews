@@ -1981,7 +1981,8 @@ tr.third td:first-child {
 .current-ko-tooltip {
   position: fixed;
   z-index: 80;
-  width: min(320px, calc(100vw - 28px));
+  width: max-content;
+  max-width: min(560px, calc(100vw - 28px));
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
@@ -2009,6 +2010,7 @@ tr.third td:first-child {
 .current-ko-tooltip-head {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.35rem;
   min-width: 0;
 }
@@ -2019,8 +2021,7 @@ tr.third td:first-child {
 
 .current-ko-tooltip-head .current-ro32-owners-count {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
 }
 
 .current-ro32-owners-threshold {
@@ -5256,7 +5257,7 @@ tr.third td:first-child {
   }
 
   .current-ko-tooltip {
-    width: min(300px, calc(100vw - 20px));
+    max-width: calc(100vw - 20px);
   }
 }
 

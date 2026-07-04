@@ -24,6 +24,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import GoalsAssists from "@/components/GoalsAssists";
 import PredictionInsights from "@/components/PredictionInsights";
 import { fixtureKickoffDate } from "@/lib/fixture-time";
@@ -2486,23 +2487,24 @@ function teamRunInBracket(
 
 function teamTooltipAnchorFromRect(rect: DOMRect): TeamTooltipAnchor {
   const margin = 14;
-  const tooltipWidth = 320;
+  const tooltipWidth = 560;
   const viewportWidth = typeof window === "undefined" ? tooltipWidth + margin * 2 : window.innerWidth;
   const viewportHeight = typeof window === "undefined" ? 720 : window.innerHeight;
+  const effectiveWidth = Math.min(tooltipWidth, viewportWidth - margin * 2);
   const left = Math.min(
-    Math.max(rect.left + rect.width / 2, margin + tooltipWidth / 2),
-    viewportWidth - margin - tooltipWidth / 2,
+    Math.max(rect.left + rect.width / 2, margin + effectiveWidth / 2),
+    viewportWidth - margin - effectiveWidth / 2,
   );
   const spaceAbove = rect.top - margin;
   const spaceBelow = viewportHeight - rect.bottom - margin;
-  const placement = spaceBelow >= 220 || spaceBelow >= spaceAbove ? "below" : "above";
+  const placement = spaceBelow >= 180 || spaceBelow >= spaceAbove ? "below" : "above";
   const available = placement === "below" ? spaceBelow : spaceAbove;
 
   return {
     left,
     top: placement === "below" ? rect.bottom + 8 : rect.top - 8,
     placement,
-    maxHeight: Math.max(150, Math.min(340, available - 8)),
+    maxHeight: Math.max(140, available - 12),
   };
 }
 
@@ -2654,8 +2656,9 @@ function CurrentKoTeamTooltip({
   onClose: () => void;
 }) {
   if (!team || !anchor) return null;
+  if (typeof document === "undefined") return null;
 
-  return (
+  const tooltip = (
     <div
       className={`current-ko-tooltip current-ko-tooltip-${anchor.placement}${pinned ? " current-ko-tooltip-pinned" : ""}`}
       style={{
@@ -2701,6 +2704,8 @@ function CurrentKoTeamTooltip({
       ) : null}
     </div>
   );
+
+  return createPortal(tooltip, document.body);
 }
 
 function CurrentRound32({
