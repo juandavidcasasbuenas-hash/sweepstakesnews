@@ -1968,37 +1968,6 @@ tr.third td:first-child {
   text-align: right;
 }
 
-.current-ro32-owners {
-  display: grid;
-  grid-template-columns: minmax(190px, max-content) minmax(0, 1fr) auto;
-  grid-template-rows: minmax(0, 1fr);
-  align-items: center;
-  gap: 0.45rem;
-  height: 6.4rem;
-  margin-top: 0.7rem;
-  padding: 0.5rem 0.6rem;
-  border: 1px dashed var(--line-strong);
-  background: rgba(0, 0, 0, 0.03);
-  overflow: hidden;
-}
-
-.current-ro32-owners-summary {
-  display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: 0.35rem;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.current-ro32-owners-hint {
-  grid-column: 1 / -1;
-  color: var(--muted);
-  font-size: 0.76rem;
-  font-style: italic;
-  line-height: 1.35;
-}
-
 .current-ro32-owners-count {
   color: var(--muted-strong);
   font-family: var(--font-display), sans-serif;
@@ -2009,8 +1978,54 @@ tr.third td:first-child {
   white-space: nowrap;
 }
 
+.current-ko-tooltip {
+  position: fixed;
+  z-index: 80;
+  width: min(320px, calc(100vw - 28px));
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.65rem;
+  border: 1px solid var(--line-strong);
+  border-top: 3px solid var(--gold);
+  background:
+    linear-gradient(rgba(0, 0, 0, 0.025) 1px, transparent 1px),
+    var(--bg-card);
+  background-size: 16px 16px, auto;
+  box-shadow: 0 18px 40px rgba(20, 15, 8, 0.22);
+  overflow: hidden;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.current-ko-tooltip-above {
+  transform: translate(-50%, -100%);
+}
+
+.current-ko-tooltip-pinned {
+  pointer-events: auto;
+}
+
+.current-ko-tooltip-head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.current-ko-tooltip-head .team-pill {
+  min-width: 0;
+}
+
+.current-ko-tooltip-head .current-ro32-owners-count {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .current-ro32-owners-threshold {
   flex: 0 0 auto;
+  align-self: flex-start;
   padding: 0.12rem 0.4rem;
   border: 1px solid var(--line);
   background: var(--bg-card);
@@ -2023,11 +2038,12 @@ tr.third td:first-child {
 
 .current-ko-owner-groups {
   display: flex;
+  flex: 1 1 auto;
   align-content: flex-start;
   align-items: flex-start;
   flex-wrap: wrap;
   gap: 0.35rem;
-  height: 100%;
+  min-height: 0;
   min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
@@ -2063,6 +2079,7 @@ tr.third td:first-child {
 }
 
 .current-ro32-owners-clear {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -5238,26 +5255,8 @@ tr.third td:first-child {
     text-align: left;
   }
 
-  .current-ro32-owners {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: start;
-    height: 7.8rem;
-  }
-
-  .current-ro32-owners-summary {
-    grid-column: 1 / -1;
-    flex-wrap: wrap;
-    row-gap: 0.25rem;
-  }
-
-  .current-ko-owner-groups {
-    grid-column: 1 / 2;
-    width: 100%;
-  }
-
-  .current-ro32-owners-clear {
-    grid-column: 2 / 3;
-    grid-row: 2;
+  .current-ko-tooltip {
+    width: min(300px, calc(100vw - 20px));
   }
 }
 

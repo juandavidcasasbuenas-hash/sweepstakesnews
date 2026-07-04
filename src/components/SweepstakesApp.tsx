@@ -2441,6 +2441,13 @@ type TeamRunOwner = TeamRun & {
   name: string;
 };
 
+type TeamTooltipAnchor = {
+  left: number;
+  top: number;
+  placement: "above" | "below";
+  maxHeight: number;
+};
+
 function fixtureContainsTeam(fixture: ResolvedFixture, team: string) {
   return teamNameMatches(fixture.resolvedTeam1, team) || teamNameMatches(fixture.resolvedTeam2, team);
 }
@@ -2477,6 +2484,28 @@ function teamRunInBracket(
   return run;
 }
 
+function teamTooltipAnchorFromRect(rect: DOMRect): TeamTooltipAnchor {
+  const margin = 14;
+  const tooltipWidth = 320;
+  const viewportWidth = typeof window === "undefined" ? tooltipWidth + margin * 2 : window.innerWidth;
+  const viewportHeight = typeof window === "undefined" ? 720 : window.innerHeight;
+  const left = Math.min(
+    Math.max(rect.left + rect.width / 2, margin + tooltipWidth / 2),
+    viewportWidth - margin - tooltipWidth / 2,
+  );
+  const spaceAbove = rect.top - margin;
+  const spaceBelow = viewportHeight - rect.bottom - margin;
+  const placement = spaceBelow >= 220 || spaceBelow >= spaceAbove ? "below" : "above";
+  const available = placement === "below" ? spaceBelow : spaceAbove;
+
+  return {
+    left,
+    top: placement === "below" ? rect.bottom + 8 : rect.top - 8,
+    placement,
+    maxHeight: Math.max(150, Math.min(340, available - 8)),
+  };
+}
+
 function BracketTeam({
   label,
   focusTeam,
@@ -2487,20 +2516,21 @@ function BracketTeam({
   label: string;
   focusTeam?: string | null;
   selectedTeam?: string | null;
-  onTeamHover?: (team: string | null) => void;
-  onTeamClick?: (team: string) => void;
+  onTeamHover?: (team: string | null, anchor?: TeamTooltipAnchor) => void;
+  onTeamClick?: (team: string, anchor: TeamTooltipAnchor) => void;
 }) {
   if (!onTeamClick || label === "TBC") return <TeamLabel team={label} />;
   const active = Boolean(focusTeam && teamNameMatches(focusTeam, label));
   const selected = Boolean(selectedTeam && teamNameMatches(selectedTeam, label));
+  const anchorForTarget = (target: HTMLElement) => teamTooltipAnchorFromRect(target.getBoundingClientRect());
   return (
     <button
       type="button"
       className={`bk-team-btn${active ? " bk-team-btn-focus" : ""}${selected ? " bk-team-btn-selected" : ""}`}
-      onClick={() => onTeamClick(label)}
-      onMouseEnter={onTeamHover ? () => onTeamHover(label) : undefined}
+      onClick={(event) => onTeamClick(label, anchorForTarget(event.currentTarget))}
+      onMouseEnter={onTeamHover ? (event) => onTeamHover(label, anchorForTarget(event.currentTarget)) : undefined}
       onMouseLeave={onTeamHover ? () => onTeamHover(null) : undefined}
-      onFocus={onTeamHover ? () => onTeamHover(label) : undefined}
+      onFocus={onTeamHover ? (event) => onTeamHover(label, anchorForTarget(event.currentTarget)) : undefined}
       onBlur={onTeamHover ? () => onTeamHover(null) : undefined}
       aria-pressed={selected}
     >
@@ -2523,8 +2553,8 @@ function Bracket({
   mode?: "prediction" | "current";
   focusTeam?: string | null;
   selectedTeam?: string | null;
-  onTeamHover?: (team: string | null) => void;
-  onTeamClick?: (team: string) => void;
+  onTeamHover?: (team: string | null, anchor?: TeamTooltipAnchor) => void;
+  onTeamClick?: (team: string, anchor: TeamTooltipAnchor) => void;
 }) {
   const byId = new Map(resolved.map((f) => [f.id, f]));
 
@@ -2604,6 +2634,75 @@ function Bracket({
   );
 }
 
+function CurrentKoTeamTooltip({
+  team,
+  anchor,
+  currentRun,
+  ownerCount,
+  submissionCount,
+  ownerGroups,
+  pinned,
+  onClose,
+}: {
+  team: string | null;
+  anchor: TeamTooltipAnchor | null;
+  currentRun: TeamRun | null;
+  ownerCount: number;
+  submissionCount: number;
+  ownerGroups: Array<{ label: string; owners: string[] }>;
+  pinned: boolean;
+  onClose: () => void;
+}) {
+  if (!team || !anchor) return null;
+
+  return (
+    <div
+      className={`current-ko-tooltip current-ko-tooltip-${anchor.placement}${pinned ? " current-ko-tooltip-pinned" : ""}`}
+      style={{
+        left: `${anchor.left}px`,
+        maxHeight: `${anchor.maxHeight}px`,
+        top: `${anchor.top}px`,
+      }}
+      role="status"
+      aria-live="polite"
+    >
+      <div className="current-ko-tooltip-head">
+        <TeamPill team={team}>{team}</TeamPill>
+        <span className="current-ro32-owners-count">
+          {ownerCount ? `${ownerCount} of ${submissionCount} still have them` : "No entries still have them"}
+        </span>
+        {pinned ? (
+          <button
+            type="button"
+            className="current-ro32-owners-clear"
+            onClick={onClose}
+            aria-label="Close team tracker"
+          >
+            <X size={12} />
+          </button>
+        ) : null}
+      </div>
+      {currentRun ? (
+        <span className="current-ro32-owners-threshold">needs {currentRun.label}+</span>
+      ) : null}
+      {ownerGroups.length ? (
+        <div className="current-ko-owner-groups">
+          {ownerGroups.map((group) => (
+            <div className="current-ko-owner-group" key={`${team}-${group.label}`}>
+              <span className="current-ko-owner-stage">{group.label}</span>
+              {group.owners.map((name) => (
+                <span className="current-ro32-predictor-pill" key={`${team}-${group.label}-${name}`}>
+                  {name}
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function CurrentRound32({
   results,
   submissions,
@@ -2615,7 +2714,10 @@ function CurrentRound32({
   const currentQualified = useMemo(() => qualifiedTeams(results.matches), [results.matches]);
   const [pinnedTeam, setPinnedTeam] = useState<string | null>(null);
   const [hoverTeam, setHoverTeam] = useState<string | null>(null);
+  const [pinnedAnchor, setPinnedAnchor] = useState<TeamTooltipAnchor | null>(null);
+  const [hoverAnchor, setHoverAnchor] = useState<TeamTooltipAnchor | null>(null);
   const focusTeam = hoverTeam ?? pinnedTeam;
+  const focusAnchor = hoverAnchor ?? pinnedAnchor;
   const round32Fixtures = useMemo(
     () =>
       BRACKET_ORDER.round32
@@ -2710,6 +2812,23 @@ function CurrentRound32({
           timeZone: matchDayTimeZone,
         })
       : "Waiting for live results";
+  const handleTeamHover = useCallback((team: string | null, anchor?: TeamTooltipAnchor) => {
+    setHoverTeam(team);
+    setHoverAnchor(team && anchor ? anchor : null);
+  }, []);
+  const handleTeamClick = useCallback((team: string, anchor: TeamTooltipAnchor) => {
+    setPinnedTeam((previousTeam) => {
+      const alreadyPinned = Boolean(previousTeam && teamNameMatches(previousTeam, team));
+      setPinnedAnchor(alreadyPinned ? null : anchor);
+      return alreadyPinned ? null : team;
+    });
+    setHoverTeam(null);
+    setHoverAnchor(null);
+  }, []);
+  const clearPinnedTeam = useCallback(() => {
+    setPinnedTeam(null);
+    setPinnedAnchor(null);
+  }, []);
 
   return (
     <section className="panel current-ro32-panel" aria-label="Current Round of 32 bracket">
@@ -2766,61 +2885,24 @@ function CurrentRound32({
           </div>
           <p>Built from the current results feed and live group standings.</p>
         </div>
-        <div className="current-ro32-owners" aria-live="polite">
-          {focusTeam ? (
-            <>
-              <div className="current-ro32-owners-summary">
-                <TeamPill team={focusTeam}>{focusTeam}</TeamPill>
-                <span className="current-ro32-owners-count">
-                  {focusOwners.length
-                    ? `${focusOwners.length} of ${submissions.length} still have them`
-                    : "No entries still have them"}
-                </span>
-                {focusCurrentRun ? (
-                  <span className="current-ro32-owners-threshold">
-                    needs {focusCurrentRun.label}+
-                  </span>
-                ) : null}
-              </div>
-              {focusOwnerGroups.length ? (
-                <div className="current-ko-owner-groups">
-                  {focusOwnerGroups.map((group) => (
-                    <div className="current-ko-owner-group" key={`${focusTeam}-${group.label}`}>
-                      <span className="current-ko-owner-stage">{group.label}</span>
-                      {group.owners.map((name) => (
-                        <span className="current-ro32-predictor-pill" key={`${focusTeam}-${group.label}-${name}`}>
-                          {name}
-                        </span>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              {pinnedTeam ? (
-                <button
-                  type="button"
-                  className="current-ro32-owners-clear"
-                  onClick={() => setPinnedTeam(null)}
-                  aria-label="Clear selected team"
-                >
-                  <X size={12} />
-                </button>
-              ) : null}
-            </>
-          ) : (
-            <span className="current-ro32-owners-hint">
-              Hover or tap any team below to see who still has it alive in their bracket.
-            </span>
-          )}
-        </div>
         <Bracket
           fixtures={currentResolved}
           picks={results.matches}
           mode="current"
           focusTeam={focusTeam}
           selectedTeam={pinnedTeam}
-          onTeamHover={setHoverTeam}
-          onTeamClick={(team) => setPinnedTeam((prev) => (prev === team ? null : team))}
+          onTeamHover={handleTeamHover}
+          onTeamClick={handleTeamClick}
+        />
+        <CurrentKoTeamTooltip
+          team={focusTeam}
+          anchor={focusAnchor}
+          currentRun={focusCurrentRun}
+          ownerCount={focusOwners.length}
+          submissionCount={submissions.length}
+          ownerGroups={focusOwnerGroups}
+          pinned={Boolean(pinnedTeam && focusTeam && teamNameMatches(pinnedTeam, focusTeam))}
+          onClose={clearPinnedTeam}
         />
       </div>
 
