@@ -3233,7 +3233,7 @@ export default function SweepstakesApp({
         }]
       : []),
     { key: "matchday", label: "Match days", icon: <CalendarDays size={18} /> },
-    { key: "currentRO32", label: "Current RO32", icon: <GitBranch size={18} /> },
+    { key: "currentRO32", label: "Current KO", icon: <GitBranch size={18} /> },
     { key: "leaderboard", label: "Leaderboard", icon: <Trophy size={18} /> },
     { key: "rules", label: "Scoring", icon: <CheckCircle2 size={18} /> },
     { key: "titlerace", label: "Title race", icon: <CarFront size={18} /> },
