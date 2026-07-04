@@ -2288,6 +2288,7 @@ tr.third td:first-child {
   border-bottom: 1px solid var(--line);
   background: var(--bg-card);
   transition: background 120ms ease;
+  cursor: pointer;
 }
 
 .leaderboard-row:last-child {
@@ -2355,6 +2356,27 @@ tr.third td:first-child {
   font-size: 0.96rem;
   font-weight: 700;
   font-family: var(--font-body), serif;
+}
+
+.lb-entrant-trigger {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: help;
+  font: inherit;
+  text-align: left;
+}
+
+.lb-entrant-trigger:hover strong,
+.lb-entrant-trigger:focus-visible strong,
+.lb-entrant-trigger[aria-pressed="true"] strong {
+  color: var(--red);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
 }
 
 .leaderboard-row small {
@@ -2428,6 +2450,111 @@ tr.third td:first-child {
 
 .leaderboard-row svg {
   color: var(--muted);
+}
+
+.leaderboard-open-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.leaderboard-open-button:hover,
+.leaderboard-open-button:focus-visible {
+  border-color: var(--line-strong);
+  background: var(--bg-card-alt);
+  color: var(--red);
+}
+
+.leaderboard-teams-tooltip {
+  position: fixed;
+  z-index: 80;
+  width: max-content;
+  max-width: min(420px, calc(100vw - 28px));
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.65rem;
+  border: 1px solid var(--line-strong);
+  border-top: 3px solid var(--green);
+  background:
+    linear-gradient(rgba(0, 0, 0, 0.025) 1px, transparent 1px),
+    var(--bg-card);
+  background-size: 16px 16px, auto;
+  box-shadow: 0 18px 40px rgba(20, 15, 8, 0.22);
+  overflow: hidden;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.leaderboard-teams-tooltip-above {
+  transform: translate(-50%, -100%);
+}
+
+.leaderboard-teams-tooltip-pinned {
+  pointer-events: auto;
+}
+
+.leaderboard-teams-tooltip-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.leaderboard-teams-tooltip-head strong {
+  color: var(--fg);
+  font-family: var(--font-body), serif;
+  font-size: 0.92rem;
+  line-height: 1.15;
+}
+
+.leaderboard-teams-tooltip-head span {
+  color: var(--muted-strong);
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
+.leaderboard-team-chip-grid {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 0.32rem;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+  scrollbar-width: thin;
+}
+
+.leaderboard-team-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.24rem;
+  padding: 0.16rem 0.4rem 0.16rem 0.22rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--bg-card-alt);
+  color: var(--fg);
+  line-height: 1;
+}
+
+.leaderboard-team-chip b {
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
 }
 
 .player-avatar {
@@ -5529,6 +5656,10 @@ tr.third td:first-child {
   }
 
   .leaderboard-row svg {
+    display: none;
+  }
+
+  .leaderboard-row .leaderboard-open-button {
     display: none;
   }
 

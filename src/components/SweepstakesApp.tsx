@@ -1670,6 +1670,18 @@ function Leaderboard({
   ownSubmissionId?: string | null;
 }) {
   const [sortBy, setSortBy] = useState<"total" | "exacts" | "nextStage">("total");
+  const [hoveredSubmissionId, setHoveredSubmissionId] = useState<string | null>(null);
+  const [pinnedSubmissionId, setPinnedSubmissionId] = useState<string | null>(null);
+  const [hoverAnchor, setHoverAnchor] = useState<TeamTooltipAnchor | null>(null);
+  const [pinnedAnchor, setPinnedAnchor] = useState<TeamTooltipAnchor | null>(null);
+  const currentResolved = useMemo(() => resolveFixtures(results.matches), [results.matches]);
+  const remainingTeamsBySubmission = useMemo(() => {
+    const teamsBySubmission = new Map<string, RemainingTeam[]>();
+    submissions.forEach((submission) => {
+      teamsBySubmission.set(submission.id, remainingTeamsForSubmission(submission, currentResolved, results));
+    });
+    return teamsBySubmission;
+  }, [currentResolved, results, submissions]);
   const rows = submissions
     .map((submission) => ({
       submission,
@@ -1692,6 +1704,28 @@ function Leaderboard({
     { id: "exacts", label: "Perfect scores" },
     { id: "nextStage", label: nextStageLabel },
   ];
+  const tooltipSubmissionId = hoveredSubmissionId ?? pinnedSubmissionId;
+  const tooltipSubmission = tooltipSubmissionId
+    ? submissions.find((submission) => submission.id === tooltipSubmissionId) ?? null
+    : null;
+  const tooltipAnchor = hoverAnchor ?? pinnedAnchor;
+  const handleEntrantHover = useCallback((submissionId: string | null, anchor?: TeamTooltipAnchor) => {
+    setHoveredSubmissionId(submissionId);
+    setHoverAnchor(submissionId && anchor ? anchor : null);
+  }, []);
+  const handleEntrantClick = useCallback((submissionId: string, anchor: TeamTooltipAnchor) => {
+    setPinnedSubmissionId((previousId) => {
+      const alreadyPinned = previousId === submissionId;
+      setPinnedAnchor(alreadyPinned ? null : anchor);
+      return alreadyPinned ? null : submissionId;
+    });
+    setHoveredSubmissionId(null);
+    setHoverAnchor(null);
+  }, []);
+  const clearPinnedEntrant = useCallback(() => {
+    setPinnedSubmissionId(null);
+    setPinnedAnchor(null);
+  }, []);
 
   return (
     <section className="panel leaderboard-panel">
@@ -1722,7 +1756,7 @@ function Leaderboard({
       ) : (
         <div className="leaderboard-list">
           {rows.map((row, index) => (
-            <button
+            <div
               className={`leaderboard-row${row.submission.id === ownSubmissionId ? " own-row" : ""}`}
               key={row.submission.id}
               onClick={() => onSelect(row.submission)}
@@ -1732,7 +1766,21 @@ function Leaderboard({
               </span>
               <PlayerAvatar name={row.submission.name} size={44} />
               <span className="lb-entrant">
-                <strong>{row.submission.name}</strong>
+                <button
+                  type="button"
+                  className="lb-entrant-trigger"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleEntrantClick(row.submission.id, teamTooltipAnchorFromRect(event.currentTarget.getBoundingClientRect()));
+                  }}
+                  onFocus={(event) => handleEntrantHover(row.submission.id, teamTooltipAnchorFromRect(event.currentTarget.getBoundingClientRect()))}
+                  onBlur={() => handleEntrantHover(null)}
+                  onMouseEnter={(event) => handleEntrantHover(row.submission.id, teamTooltipAnchorFromRect(event.currentTarget.getBoundingClientRect()))}
+                  onMouseLeave={() => handleEntrantHover(null)}
+                  aria-pressed={pinnedSubmissionId === row.submission.id}
+                >
+                  <strong>{row.submission.name}</strong>
+                </button>
                 <small>
                   {row.submission.id === ownSubmissionId ? "Your entry · " : ""}
                   Groups {row.score.groupMatches + row.score.qualification} · KO {row.score.knockoutMatches + row.score.placements} · Bonus {row.score.bonuses}
@@ -1753,11 +1801,28 @@ function Leaderboard({
                 <small>{row.nextStage.shortLabel}</small>
               </span>
               <b>{row.score.total}</b>
-              <Eye size={16} />
-            </button>
+              <button
+                type="button"
+                className="leaderboard-open-button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onSelect(row.submission);
+                }}
+                aria-label={`Open ${row.submission.name}'s predictions`}
+              >
+                <Eye size={16} />
+              </button>
+            </div>
           ))}
         </div>
       )}
+      <LeaderboardTeamsTooltip
+        entrantName={tooltipSubmission?.name ?? null}
+        anchor={tooltipAnchor}
+        teams={tooltipSubmission ? remainingTeamsBySubmission.get(tooltipSubmission.id) ?? [] : []}
+        pinned={Boolean(pinnedSubmissionId && tooltipSubmissionId === pinnedSubmissionId)}
+        onClose={clearPinnedEntrant}
+      />
     </section>
   );
 }
@@ -2442,6 +2507,10 @@ type TeamRunOwner = TeamRun & {
   name: string;
 };
 
+type RemainingTeam = TeamRun & {
+  team: string;
+};
+
 type TeamTooltipAnchor = {
   left: number;
   top: number;
@@ -2459,6 +2528,28 @@ function resultWinnerMatchesTeam(fixture: ResolvedFixture | undefined, pick: Mat
   if (pick.home > pick.away) return teamNameMatches(fixture.resolvedTeam1, team);
   if (pick.away > pick.home) return teamNameMatches(fixture.resolvedTeam2, team);
   return false;
+}
+
+function resultHasDecidedWinner(pick: MatchPick | ResultMatch | undefined) {
+  return Boolean(
+    pick &&
+      (pick.winner ||
+        (typeof pick.home === "number" &&
+          typeof pick.away === "number" &&
+          pick.home !== pick.away)),
+  );
+}
+
+function teamIsStillAliveInResults(
+  fixtures: ResolvedFixture[],
+  picks: Record<number, MatchPick | ResultMatch | undefined>,
+  team: string,
+) {
+  return !fixtures.some((fixture) => {
+    if (fixture.stage === "group" || !fixtureContainsTeam(fixture, team)) return false;
+    const pick = picks[fixture.id];
+    return resultHasDecidedWinner(pick) && !resultWinnerMatchesTeam(fixture, pick, team);
+  });
 }
 
 function teamRunInBracket(
@@ -2483,6 +2574,38 @@ function teamRunInBracket(
   }
 
   return run;
+}
+
+function remainingTeamsForSubmission(
+  submission: Submission,
+  currentFixtures: ResolvedFixture[],
+  results: TournamentResults,
+) {
+  const predictedFixtures = resolveFixtures(submission.picks);
+  const teamsByKey = new Map<string, string>();
+
+  currentFixtures.forEach((fixture) => {
+    [fixture.resolvedTeam1, fixture.resolvedTeam2].forEach((team) => {
+      if (isPlaceholderTeam(team)) return;
+      const canonical = (canonicalTeamName(team) ?? team.trim()).toLowerCase();
+      teamsByKey.set(canonical, canonicalTeamName(team) ?? team);
+    });
+  });
+
+  return Array.from(teamsByKey.values())
+    .map((team) => {
+      if (!teamIsStillAliveInResults(currentFixtures, results.matches, team)) return null;
+      const currentRun = teamRunInBracket(currentFixtures, results.matches, team);
+      const predictedRun = teamRunInBracket(predictedFixtures, submission.picks, team);
+      if (!currentRun || !predictedRun || predictedRun.rank < currentRun.rank) return null;
+      return {
+        team,
+        label: predictedRun.label,
+        rank: predictedRun.rank,
+      };
+    })
+    .filter((item): item is RemainingTeam => Boolean(item))
+    .sort((a, b) => b.rank - a.rank || a.team.localeCompare(b.team));
 }
 
 function teamTooltipAnchorFromRect(rect: DOMRect): TeamTooltipAnchor {
@@ -2699,6 +2822,63 @@ function CurrentKoTeamTooltip({
                 </span>
               ))}
             </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+
+  return createPortal(tooltip, document.body);
+}
+
+function LeaderboardTeamsTooltip({
+  entrantName,
+  anchor,
+  teams,
+  pinned,
+  onClose,
+}: {
+  entrantName: string | null;
+  anchor: TeamTooltipAnchor | null;
+  teams: RemainingTeam[];
+  pinned: boolean;
+  onClose: () => void;
+}) {
+  if (!entrantName || !anchor) return null;
+  if (typeof document === "undefined") return null;
+
+  const tooltip = (
+    <div
+      className={`leaderboard-teams-tooltip leaderboard-teams-tooltip-${anchor.placement}${pinned ? " leaderboard-teams-tooltip-pinned" : ""}`}
+      style={{
+        left: `${anchor.left}px`,
+        maxHeight: `${anchor.maxHeight}px`,
+        top: `${anchor.top}px`,
+      }}
+      role="status"
+      aria-live="polite"
+    >
+      <div className="leaderboard-teams-tooltip-head">
+        <strong>{entrantName}</strong>
+        <span>{teams.length ? `${teams.length} team${teams.length === 1 ? "" : "s"} left` : "No teams left"}</span>
+        {pinned ? (
+          <button
+            type="button"
+            className="current-ro32-owners-clear"
+            onClick={onClose}
+            aria-label="Close remaining teams"
+          >
+            <X size={12} />
+          </button>
+        ) : null}
+      </div>
+      {teams.length ? (
+        <div className="leaderboard-team-chip-grid" aria-label={`${entrantName}'s teams left`}>
+          {teams.map((team) => (
+            <span className="leaderboard-team-chip" key={`${entrantName}-${team.team}`} title={`${team.team} · ${team.label}`}>
+              <TeamFlag team={team.team} />
+              <b>{teamAbbreviation(team.team)}</b>
+            </span>
           ))}
         </div>
       ) : null}
