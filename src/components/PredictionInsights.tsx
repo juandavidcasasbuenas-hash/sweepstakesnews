@@ -26,6 +26,7 @@ import {
   type MatchSplit,
   type PoolInsights,
 } from "@/lib/insights";
+import SeasonMomentumPanel from "@/components/SeasonMomentumPanel";
 import { flagUrlFor } from "@/lib/team-flags";
 import type { Submission, Tournament } from "@/types/game";
 
@@ -444,6 +445,8 @@ export default function PredictionInsights({
                     </article>
                   </div>
                 </section>
+
+                {isDefaultTournament ? <SeasonMomentumPanel /> : null}
 
                 {insights.champions.length > 0 ? (
                   <section className="panel">
