@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canonicalizePlayerName, matchPlayerName } from "./player-names";
+import {
+  canonicalizePlayerName,
+  canonicalizePlayerNames,
+  matchPlayerName,
+  normalizePlayerName,
+} from "./player-names";
 
 const candidates = [
   "Kylian Mbappé",
@@ -29,4 +34,13 @@ test("canonicalize falls back to the trimmed input when unmatched", () => {
   assert.equal(canonicalizePlayerName("  Harry Kane ", candidates), "Harry Kane");
   assert.equal(canonicalizePlayerName("Some Newcomer", candidates), "Some Newcomer");
   assert.equal(canonicalizePlayerName("", candidates), "");
+});
+
+test("groups full names, surnames, and initials under the most specific spelling", () => {
+  const aliases = canonicalizePlayerNames(["Yamal", "Lamine Yamal", "L. Yamal"]);
+
+  assert.equal(aliases.get(normalizePlayerName("Yamal")), "Lamine Yamal");
+  assert.equal(aliases.get(normalizePlayerName("Lamine Yamal")), "Lamine Yamal");
+  assert.equal(aliases.get(normalizePlayerName("L. Yamal")), "Lamine Yamal");
+  assert.equal(matchPlayerName("Lamine Yamal", ["Yamal"]), "Yamal");
 });

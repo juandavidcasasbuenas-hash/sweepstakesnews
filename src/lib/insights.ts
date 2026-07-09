@@ -1,4 +1,4 @@
-import { canonicalizePlayerName } from "@/lib/player-names";
+import { canonicalizePlayerNames, normalizePlayerName } from "@/lib/player-names";
 import { groupFixtures, resolveFixtures } from "@/lib/tournament";
 import type { MatchPick, ResolvedFixture, Submission } from "@/types/game";
 
@@ -193,6 +193,13 @@ export function buildPoolInsights(
   playerNames: string[] = [],
 ): PoolInsights {
   const subs = [...submissions].sort((a, b) => a.name.localeCompare(b.name));
+  const bonusPlayerNames = subs.flatMap((sub) => [
+    sub.bonuses?.topScorer ?? "",
+    sub.bonuses?.goldenBall ?? "",
+  ]);
+  const bonusPlayerAliases = canonicalizePlayerNames(bonusPlayerNames, playerNames);
+  const canonicalBonusPlayerName = (name: string) =>
+    bonusPlayerAliases.get(normalizePlayerName(name)) ?? name.trim();
   const resolvedById = new Map(subs.map((sub) => [sub.id, resolveFixtures(sub.picks)]));
   const entries = subs.map((sub) => buildEntryInsight(sub, resolvedById.get(sub.id)!));
 
@@ -355,13 +362,13 @@ export function buildPoolInsights(
     opposites,
     bonusTopScorers: tallyLabels(
       subs.map((sub) => ({
-        label: canonicalizePlayerName(sub.bonuses?.topScorer ?? "", playerNames),
+        label: canonicalBonusPlayerName(sub.bonuses?.topScorer ?? ""),
         backer: sub.name,
       })),
     ),
     bonusGoldenBalls: tallyLabels(
       subs.map((sub) => ({
-        label: canonicalizePlayerName(sub.bonuses?.goldenBall ?? "", playerNames),
+        label: canonicalBonusPlayerName(sub.bonuses?.goldenBall ?? ""),
         backer: sub.name,
       })),
     ),

@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
-import { matchPlayerName } from "@/lib/player-names";
+import { canonicalizePlayerNames, normalizePlayerName } from "@/lib/player-names";
 import { canonicalTeamName, flagUrlFor } from "@/lib/team-flags";
 import type {
   PlayerGoalAssistRow,
@@ -159,24 +159,34 @@ export default function GoalsAssists({
     };
   }, [scopedSubmissionsKey, submissionsProp, submissionsUrl]);
 
-  // Map each leading scorer to the people who predicted them as top scorer,
-  // matching hand-typed names against the validated scorer list.
+  // Let full entry spellings and provider spellings resolve together, even
+  // when a player has not yet appeared in the scorer feed.
+  const topScorerAliases = useMemo(
+    () =>
+      canonicalizePlayerNames(
+        [
+          ...stats.scorers.map((row) => row.player),
+          ...stats.assists.map((row) => row.player),
+          ...submissions.map((submission) => submission.bonuses?.topScorer ?? ""),
+        ],
+      ),
+    [stats.assists, stats.scorers, submissions],
+  );
+
+  // Map each leading scorer to the people who predicted them as top scorer.
   const topScorerPredictors = useMemo(() => {
     const map = new Map<string, string[]>();
     if (!submissions.length || !stats.scorers.length) return map;
-    const candidateNames = stats.scorers.map((row) => row.player);
     submissions.forEach((submission) => {
       const pick = submission.bonuses?.topScorer?.trim();
       if (!pick) return;
-      const canonical = matchPlayerName(pick, candidateNames);
-      if (!canonical) return;
-      const key = canonical.toLowerCase();
+      const key = topScorerAliases.get(normalizePlayerName(pick)) ?? normalizePlayerName(pick);
       const backers = map.get(key) ?? [];
       if (!backers.includes(submission.name)) backers.push(submission.name);
       map.set(key, backers);
     });
     return map;
-  }, [stats.scorers, submissions]);
+  }, [stats.scorers.length, submissions, topScorerAliases]);
 
   const rows = useMemo(() => {
     const merged = new Map<string, PlayerGoalAssistRow>();
@@ -250,7 +260,8 @@ export default function GoalsAssists({
           <tbody>
             {rows.length ? (
               rows.map((row) => {
-                const predictors = topScorerPredictors.get(row.player.toLowerCase()) ?? [];
+                const predictorKey = topScorerAliases.get(normalizePlayerName(row.player)) ?? normalizePlayerName(row.player);
+                const predictors = topScorerPredictors.get(predictorKey) ?? [];
                 return (
                   <tr key={`${row.player}-${row.team ?? "team"}`}>
                     <td>

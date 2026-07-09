@@ -7,9 +7,9 @@
 import { Activity } from "lucide-react";
 import SeasonMomentumBoard from "@/components/SeasonMomentumBoard";
 
-export default function SeasonMomentumPanel() {
+export default function SeasonMomentumPanel({ id }: { id?: string }) {
   return (
-    <section className="panel ins-momentum">
+    <section id={id} className="panel ins-momentum">
       <div className="section-title">
         <span className="title-icon">
           <Activity size={18} />

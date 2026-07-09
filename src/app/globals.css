@@ -6415,6 +6415,65 @@ tr.third td:first-child {
   text-align: center;
 }
 
+/* Compact in-page index for the long Fun Facts readout. */
+.ins-section-nav {
+  position: sticky;
+  top: 0.65rem;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--red);
+  background: color-mix(in srgb, var(--bg-card-alt) 92%, transparent);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(10px);
+}
+
+.ins-section-nav > span {
+  margin-right: 0.12rem;
+  color: var(--muted);
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ins-section-nav a {
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--fg);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.ins-section-nav a:hover,
+.ins-section-nav a:focus-visible {
+  border-color: var(--red);
+  background: var(--red);
+  color: #fff;
+  outline: none;
+}
+
+.ins-momentum,
+.ins-section-nav,
+#ins-champions,
+#ins-goals,
+#ins-superlatives,
+#ins-consensus,
+#ins-scorelines,
+#ins-final-four,
+#ins-bonuses {
+  scroll-margin-top: 5.2rem;
+}
+
 @media (max-width: 1080px) {
   .tabs .tab-link {
     min-width: max-content;
@@ -6453,6 +6512,10 @@ tr.third td:first-child {
 
   .ga-table strong {
     font-size: 0.98rem;
+  }
+
+  .ins-section-nav {
+    position: static;
   }
 }
 

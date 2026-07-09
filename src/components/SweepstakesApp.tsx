@@ -2896,30 +2896,33 @@ function CurrentRound32({
   submissions: Submission[];
 }) {
   const currentResolved = useMemo(() => resolveFixtures(results.matches), [results.matches]);
-  const currentQualified = useMemo(() => qualifiedTeams(results.matches), [results.matches]);
   const [pinnedTeam, setPinnedTeam] = useState<string | null>(null);
   const [hoverTeam, setHoverTeam] = useState<string | null>(null);
   const [pinnedAnchor, setPinnedAnchor] = useState<TeamTooltipAnchor | null>(null);
   const [hoverAnchor, setHoverAnchor] = useState<TeamTooltipAnchor | null>(null);
   const focusTeam = hoverTeam ?? pinnedTeam;
   const focusAnchor = hoverAnchor ?? pinnedAnchor;
-  const round32Fixtures = useMemo(
-    () =>
-      BRACKET_ORDER.round32
+  // The lower mapping always shows the next active knockout round. Once all
+  // quarter-finals have a winner, it naturally becomes the semi-final map.
+  const currentMapping = (() => {
+    const fixturesFor = (stage: keyof typeof BRACKET_ORDER) =>
+      BRACKET_ORDER[stage]
         .map((id) => currentResolved.find((fixture) => fixture.id === id))
-        .filter(Boolean) as ResolvedFixture[],
-    [currentResolved],
-  );
-  const quarterFixtures = useMemo(
-    () =>
-      BRACKET_ORDER.quarter
-        .map((id) => currentResolved.find((fixture) => fixture.id === id))
-        .filter(Boolean) as ResolvedFixture[],
-    [currentResolved],
-  );
-  const predictorNamesByFixture = useMemo(() => {
+        .filter(Boolean) as ResolvedFixture[];
+
+    for (const { stage, label } of BRACKET_COLS) {
+      const fixtures = fixturesFor(stage);
+      if (fixtures.some((fixture) => !resultHasDecidedWinner(results.matches[fixture.id]))) {
+        return { label, fixtures };
+      }
+    }
+
+    const final = BRACKET_COLS[BRACKET_COLS.length - 1];
+    return { label: final.label, fixtures: fixturesFor(final.stage) };
+  })();
+  const predictorNamesByFixture = (() => {
     const currentKeys = new Map(
-      quarterFixtures.map((fixture) => [
+      currentMapping.fixtures.map((fixture) => [
         fixture.id,
         matchupKey(fixture.resolvedTeam1, fixture.resolvedTeam2),
       ]),
@@ -2928,7 +2931,7 @@ function CurrentRound32({
 
     submissions.forEach((submission) => {
       const predictedResolved = resolveFixtures(submission.picks);
-      quarterFixtures.forEach((currentFixture) => {
+      currentMapping.fixtures.forEach((currentFixture) => {
         const currentKey = currentKeys.get(currentFixture.id);
         const predictedFixture = predictedResolved.find((fixture) => fixture.id === currentFixture.id);
         if (
@@ -2944,18 +2947,7 @@ function CurrentRound32({
     });
 
     return namesByFixture;
-  }, [quarterFixtures, submissions]);
-  const knockoutResults = Object.values(results.matches ?? {}).filter((match) => {
-    const fixture = currentResolved.find((item) => item.id === match.fixtureId);
-    return fixture && fixture.stage !== "group";
-  });
-  const liveKnockouts = knockoutResults.filter((match) => match.status === "live").length;
-  const completedKnockouts = knockoutResults.filter((match) => match.status === "completed" || match.winner).length;
-  const projectedRound32Teams = new Set(
-    round32Fixtures
-      .flatMap((fixture) => [fixture.resolvedTeam1, fixture.resolvedTeam2])
-      .filter((team) => !isPlaceholderTeam(team)),
-  );
+  })();
   const focusCurrentRun = focusTeam ? teamRunInBracket(currentResolved, results.matches, focusTeam) : null;
   const focusOwners = useMemo<TeamRunOwner[]>(() => {
     if (!focusTeam || !focusCurrentRun) return [];
@@ -2983,20 +2975,6 @@ function CurrentRound32({
       .sort(([rankA], [rankB]) => rankB - rankA)
       .map(([, group]) => group);
   }, [focusOwners]);
-  const nextFixture =
-    round32Fixtures.find((fixture) => !results.matches[fixture.id]) ??
-    currentResolved.find((fixture) => fixture.stage !== "group" && !results.matches[fixture.id]);
-  const updatedAt = new Date(results.updatedAt);
-  const updatedLabel =
-    Number.isFinite(updatedAt.getTime()) && updatedAt.getTime() > 0
-      ? updatedAt.toLocaleString(matchDayLocale, {
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          month: "short",
-          timeZone: matchDayTimeZone,
-        })
-      : "Waiting for live results";
   const handleTeamHover = useCallback((team: string | null, anchor?: TeamTooltipAnchor) => {
     setHoverTeam(team);
     setHoverAnchor(team && anchor ? anchor : null);
@@ -3016,59 +2994,14 @@ function CurrentRound32({
   }, []);
 
   return (
-    <section className="panel current-ro32-panel" aria-label="Current Round of 32 bracket">
-      <div className="current-ro32-head">
-        <div className="section-title">
-          <span className="title-icon"><GitBranch size={18} /></span>
-          <div>
-            <span className="eyebrow">Live knockout picture</span>
-            <h2>Current RO32</h2>
-          </div>
-        </div>
-        <div className="current-ro32-updated">
-          <span>Updated</span>
-          <strong>{updatedLabel}</strong>
-        </div>
-      </div>
-
-      <div className="current-ro32-metrics" aria-label="Current knockout summary">
-        <article>
-          <span>RO32 slots shown</span>
-          <strong>{projectedRound32Teams.size}</strong>
-          <small>current projection</small>
-        </article>
-        <article>
-          <span>KO results in</span>
-          <strong>{completedKnockouts}</strong>
-          <small>{liveKnockouts ? `${liveKnockouts} live now` : "paths update as winners land"}</small>
-        </article>
-        <article>
-          <span>Next branch</span>
-          <strong>{nextFixture ? `M${displayMatchNumber(nextFixture)}` : "Final"}</strong>
-          <small>{nextFixture ? `${formatFixtureDate(nextFixture)} · ${nextFixture.venue}` : "Bracket complete"}</small>
-        </article>
-      </div>
-
-      <div className="current-ro32-strip">
-        <span className="third-place-label">Best 3rd-placed teams currently in</span>
-        {currentQualified.bestThirds.length ? (
-          currentQualified.bestThirds.map((team) => (
-            <TeamPill key={`current-third-${team.group}-${team.team}`} team={team.team}>
-              3{team.group} · {team.team}
-            </TeamPill>
-          ))
-        ) : (
-          <TeamPill>Awaiting group tables</TeamPill>
-        )}
-      </div>
-
+    <section className="panel current-ro32-panel" aria-label="Current knockout bracket">
       <div className="current-ro32-bracket">
         <div className="current-ro32-bracket-topline">
           <div>
             <span className="eyebrow">Path to the final</span>
-            <h3>Knockout branches</h3>
+            <h3>Live knockout bracket</h3>
           </div>
-          <p>Built from the current results feed and live group standings.</p>
+          <p>Click a team to see whose prediction is still alive.</p>
         </div>
         <Bracket
           fixtures={currentResolved}
@@ -3091,8 +3024,8 @@ function CurrentRound32({
         />
       </div>
 
-      <div className="current-ro32-fixtures" aria-label="Current quarter-final fixtures">
-        {quarterFixtures.map((fixture) => {
+      <div className="current-ro32-fixtures" aria-label={`Current ${currentMapping.label} mapping`}>
+        {currentMapping.fixtures.map((fixture) => {
           const result = results.matches[fixture.id];
           const homeLabel = bracketTeamLabel(fixture.resolvedTeam1);
           const awayLabel = bracketTeamLabel(fixture.resolvedTeam2);
@@ -3720,7 +3653,7 @@ export default function SweepstakesApp({
       h1: "Match\nDays",
     },
     currentRO32: {
-      h1: "Current\nRO32",
+      h1: "Current\nKnockout",
     },
     rules: {
       h1: "Scoring\nSystem",

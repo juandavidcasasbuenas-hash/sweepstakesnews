@@ -405,8 +405,25 @@ export default function PredictionInsights({
   const goalLeader = goalRanking[0];
   const goalMin = goalRanking[goalRanking.length - 1];
 
+  const sectionNavigation = insights ? (
+    <nav className="ins-section-nav" aria-label="Fun facts sections">
+      <span>Jump to</span>
+      {isDefaultTournament ? <a href="#ins-momentum">Momentum</a> : null}
+      <a href="#ins-champions">Champions</a>
+      <a href="#ins-goals">Goals</a>
+      <a href="#ins-superlatives">Awards</a>
+      <a href="#ins-consensus">Consensus</a>
+      <a href="#ins-scorelines">Scorelines</a>
+      <a href="#ins-final-four">Final four</a>
+      <a href="#ins-bonuses">Bonus picks</a>
+    </nav>
+  ) : null;
+
   const body = (
-    loading && !insights ? (
+    <>
+      {isDefaultTournament ? <SeasonMomentumPanel id="ins-momentum" /> : null}
+      {sectionNavigation}
+      {loading && !insights ? (
               <section className="panel">
                 <p className="muted">Crunching everyone&apos;s predictions…</p>
               </section>
@@ -420,36 +437,8 @@ export default function PredictionInsights({
               </section>
             ) : (
               <>
-                <section className="panel">
-                  <SectionTitle icon={<BarChart3 size={18} />} eyebrow="The pool by the numbers" title="Headline stats" />
-                  <div className="ins-metrics">
-                    <article className="ins-metric">
-                      <span>Entries</span>
-                      <b>{insights.entryCount}</b>
-                      <small>brave souls</small>
-                    </article>
-                    <article className="ins-metric">
-                      <span>Goals predicted</span>
-                      <b>{insights.totalGoals.toLocaleString()}</b>
-                      <small>across {plural(insights.totalPicks, "pick")}</small>
-                    </article>
-                    <article className="ins-metric">
-                      <span>Avg per match</span>
-                      <b>{insights.avgGoalsPerMatch.toFixed(2)}</b>
-                      <small>pool-wide goal diet</small>
-                    </article>
-                    <article className="ins-metric">
-                      <span>Shootouts called</span>
-                      <b>{insights.totalShootouts}</b>
-                      <small>penalty dramas predicted</small>
-                    </article>
-                  </div>
-                </section>
-
-                {isDefaultTournament ? <SeasonMomentumPanel /> : null}
-
                 {insights.champions.length > 0 ? (
-                  <section className="panel">
+                  <section id="ins-champions" className="panel">
                     <SectionTitle icon={<Crown size={18} />} eyebrow="The big one" title="Who lifts the trophy?" />
                     <div className="ins-bar-list">
                       {insights.champions.map((item) => (
@@ -475,7 +464,7 @@ export default function PredictionInsights({
                   </section>
                 ) : null}
 
-                <section className="panel">
+                <section id="ins-goals" className="panel">
                   <SectionTitle icon={<Flame size={18} />} eyebrow="Optimists vs pessimists" title="Goal fests & bore fests" />
                   <p className="ins-note ins-note-lead">
                     Average goals per match each player has pencilled in across their whole tournament.
@@ -505,7 +494,7 @@ export default function PredictionInsights({
                 </section>
 
                 {superlatives.length > 0 ? (
-                  <section className="panel">
+                  <section id="ins-superlatives" className="panel">
                     <SectionTitle icon={<Medal size={18} />} eyebrow="Hall of fame & shame" title="Pool superlatives" />
                     <div className="ins-cards">
                       {superlatives.map((card) => (
@@ -522,7 +511,7 @@ export default function PredictionInsights({
                 ) : null}
 
                 {insights.entryCount >= 2 && (insights.mostAgreedMatch || insights.mostDivisiveMatch) ? (
-                  <section className="panel">
+                  <section id="ins-consensus" className="panel">
                     <SectionTitle icon={<Users size={18} />} eyebrow="Group-stage groupthink" title="Consensus corner" />
                     <div className="ins-split-grid">
                       {insights.mostAgreedMatch ? (
@@ -537,7 +526,7 @@ export default function PredictionInsights({
                 ) : null}
 
                 {insights.topScorelines.length > 0 ? (
-                  <section className="panel">
+                  <section id="ins-scorelines" className="panel">
                     <SectionTitle icon={<Zap size={18} />} eyebrow="Scoreline obsessions" title="The pool's favourite scores" />
                     <div className="ins-bar-list">
                       {insights.topScorelines.map((item) => (
@@ -559,7 +548,7 @@ export default function PredictionInsights({
                 ) : null}
 
                 {insights.semiFinalists.length > 0 ? (
-                  <section className="panel">
+                  <section id="ins-final-four" className="panel">
                     <SectionTitle icon={<Trophy size={18} />} eyebrow="Deep-run darlings" title="Final four favourites" />
                     <p className="ins-note ins-note-lead">
                       How many entries have each team reaching the semi-finals.
@@ -593,7 +582,7 @@ export default function PredictionInsights({
                 {insights.bonusTopScorers.length > 0 ||
                 insights.bonusGoldenBalls.length > 0 ||
                 insights.bonusMostGoalsTeams.length > 0 ? (
-                  <section className="panel">
+                  <section id="ins-bonuses" className="panel">
                     <SectionTitle icon={<Medal size={18} />} eyebrow="Side bets" title="Bonus pick battle" />
                     <div className="ins-bonus-grid">
                       <div className="ins-bonus-col">
@@ -638,7 +627,8 @@ export default function PredictionInsights({
                   change anything here, only the takes people committed to.
                 </p>
               </>
-            )
+            )}
+    </>
   );
 
   if (embedded) {
