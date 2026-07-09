@@ -2910,16 +2910,16 @@ function CurrentRound32({
         .filter(Boolean) as ResolvedFixture[],
     [currentResolved],
   );
-  const round16Fixtures = useMemo(
+  const quarterFixtures = useMemo(
     () =>
-      BRACKET_ORDER.round16
+      BRACKET_ORDER.quarter
         .map((id) => currentResolved.find((fixture) => fixture.id === id))
         .filter(Boolean) as ResolvedFixture[],
     [currentResolved],
   );
   const predictorNamesByFixture = useMemo(() => {
     const currentKeys = new Map(
-      round16Fixtures.map((fixture) => [
+      quarterFixtures.map((fixture) => [
         fixture.id,
         matchupKey(fixture.resolvedTeam1, fixture.resolvedTeam2),
       ]),
@@ -2928,7 +2928,7 @@ function CurrentRound32({
 
     submissions.forEach((submission) => {
       const predictedResolved = resolveFixtures(submission.picks);
-      round16Fixtures.forEach((currentFixture) => {
+      quarterFixtures.forEach((currentFixture) => {
         const currentKey = currentKeys.get(currentFixture.id);
         const predictedFixture = predictedResolved.find((fixture) => fixture.id === currentFixture.id);
         if (
@@ -2944,7 +2944,7 @@ function CurrentRound32({
     });
 
     return namesByFixture;
-  }, [round16Fixtures, submissions]);
+  }, [quarterFixtures, submissions]);
   const knockoutResults = Object.values(results.matches ?? {}).filter((match) => {
     const fixture = currentResolved.find((item) => item.id === match.fixtureId);
     return fixture && fixture.stage !== "group";
@@ -3091,8 +3091,8 @@ function CurrentRound32({
         />
       </div>
 
-      <div className="current-ro32-fixtures" aria-label="Current Round of 16 fixtures">
-        {round16Fixtures.map((fixture) => {
+      <div className="current-ro32-fixtures" aria-label="Current quarter-final fixtures">
+        {quarterFixtures.map((fixture) => {
           const result = results.matches[fixture.id];
           const homeLabel = bracketTeamLabel(fixture.resolvedTeam1);
           const awayLabel = bracketTeamLabel(fixture.resolvedTeam2);
