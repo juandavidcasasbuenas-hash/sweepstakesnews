@@ -151,10 +151,10 @@ function DemandsPanel({ verdict }: { verdict: PlayerVerdict }) {
         <ul>
           {verdict.deadBonuses.map((bonus) => (
             <li key={bonus.category} className="dead">
+              <b>DEAD</b>
               <s>
                 {bonus.value} — your {CATEGORY_LABELS[bonus.category]} ticket
               </s>
-              <b>DEAD</b>
             </li>
           ))}
         </ul>
@@ -201,10 +201,10 @@ function DemandsPanel({ verdict }: { verdict: PlayerVerdict }) {
         ))}
         {verdict.deadBonuses.map((bonus) => (
           <li key={`dead-${bonus.category}`} className="dead">
+            <b>DEAD</b>
             <s>
               {bonus.value} — your {CATEGORY_LABELS[bonus.category]} ticket
             </s>
-            <b>DEAD</b>
           </li>
         ))}
       </ul>

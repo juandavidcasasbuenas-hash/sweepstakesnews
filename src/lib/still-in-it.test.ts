@@ -272,7 +272,7 @@ test("chained remaining matches (semi feeds final) match brute force", async () 
   });
 });
 
-test("announced pairings rewire the simulated bracket", async () => {
+test("announced pairings cannot rewire the official bracket", async () => {
   const base = buildPicks(3);
   const submissions = [makeSubmission("A", base), makeSubmission("B", buildPicks(4))];
   // Same shape as the real tournament today: two QFs + semis onward open.
@@ -286,6 +286,10 @@ test("announced pairings rewire the simulated bracket", async () => {
     resolved.find((item) => item.id === 99)!.resolvedTeam1,
     resolved.find((item) => item.id === 99)!.resolvedTeam2,
   ];
+  const teams100 = [
+    resolved.find((item) => item.id === 100)!.resolvedTeam1,
+    resolved.find((item) => item.id === 100)!.resolvedTeam2,
+  ];
 
   // Without pins: the local skeleton pairs W97 v W98 in the first semi.
   const unpinned = await crunchStillInIt(submissions, results, { yieldEvery: 0 });
@@ -295,8 +299,9 @@ test("announced pairings rewire the simulated bracket", async () => {
   assert.equal(unpinnedSemi.team1, winner97);
   assert.equal(unpinnedSemi.team2, winner98);
 
-  // With provider pins (W97 home of SF1, W98 home of SF2), the open slots are
-  // rewired to the unplayed quarter-finals.
+  // A speculative provider row puts W98 on the other semi-final. It must be
+  // ignored rather than pulling the remaining quarter-final feeds across the
+  // official sides of the draw.
   const pinnedReport = await crunchStillInIt(submissions, results, {
     yieldEvery: 0,
     pinnedSlots: { 101: [winner97, null], 102: [winner98, null] },
@@ -305,12 +310,10 @@ test("announced pairings rewire the simulated bracket", async () => {
   if (pinnedReport.mode !== "ready") return;
   const semi1 = pinnedReport.players[0].dream.matches.find((item) => item.fixtureId === 101)!;
   assert.equal(semi1.team1, winner97);
-  assert.ok(
-    teams99.includes(semi1.team2),
-    `semi 1 away slot should come from QF 99, got ${semi1.team2}`,
-  );
+  assert.equal(semi1.team2, winner98);
   const semi2 = pinnedReport.players[0].dream.matches.find((item) => item.fixtureId === 102)!;
-  assert.equal(semi2.team1, winner98);
+  assert.ok(teams99.includes(semi2.team1), `semi 2 home slot should come from QF 99`);
+  assert.ok(teams100.includes(semi2.team2), `semi 2 away slot should come from QF 100`);
 });
 
 test("dead bonus picks cannot rescue a trailing player", async () => {

@@ -140,7 +140,7 @@ main {
 .still-demands li.flex b { background: #111; color: white; }
 .still-demands li.bet b { border: 2px solid #111; color: #111; }
 .still-demands li.dead { color: var(--muted); }
-.still-demands li.dead b { background: #111; color: var(--red-bright); transform: rotate(3deg); order: 2; }
+.still-demands li.dead b { background: #111; color: var(--red-bright); transform: rotate(3deg); }
 .still-demands li.dead s { text-decoration-color: var(--red); text-decoration-thickness: 2px; }
 
 /* Edition chapters */

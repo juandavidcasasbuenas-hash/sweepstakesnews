@@ -1,9 +1,8 @@
 // Announced pairings for unplayed knockout matches, straight from the
-// provider's schedule. The local fixture skeleton and the live bracket can
-// disagree about which match feeds which semi-final slot; the names the
-// provider has already filled in are the ground truth the "Am I still in it?"
-// simulation pins its futures to. Results ingestion drops scheduled rows (no
-// scores), so this is the only place that surfaces them.
+// provider's schedule. Results ingestion drops scheduled rows (no scores), so
+// this is the only place that surfaces them. The simulation validates these
+// names against the official fixture feeds before using them because providers
+// can populate future rounds speculatively on the wrong side of the draw.
 
 import { NextResponse } from "next/server";
 import { fixtureFromProviderMatchNumber } from "@/lib/tournament";

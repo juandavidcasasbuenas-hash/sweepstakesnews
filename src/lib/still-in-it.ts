@@ -140,11 +140,10 @@ export type CrunchOptions = {
   yieldEvery?: number;
   /**
    * Provider-announced pairings for unplayed matches, fixtureId -> [home, away]
-   * (null = slot not announced yet). The local fixture skeleton and the live
-   * bracket can disagree on knockout wiring (e.g. which quarter-final feeds
-   * which semi), so announced names are authoritative: each one is traced back
-   * to the feed that produced it and the leftover feeds are re-wired into the
-   * open slots. As the provider fills slots, the simulated bracket self-heals.
+   * (null = slot not announced yet). Announced names may supply the provider's
+   * preferred spelling, but they cannot override the official fixture feeds.
+   * Some providers populate future rounds speculatively and can put a known
+   * team on the wrong side of the draw.
    */
   pinnedSlots?: Record<number, [string | null, string | null]>;
 };
@@ -325,75 +324,35 @@ export async function crunchStillInIt(
     return feed.kind === "winner" ? outcome.winner : outcome.loser;
   }
 
-  // Wire each remaining stage. Feeds are pooled per stage so that announced
-  // pairings can override the local skeleton's assumptions about which match
-  // feeds which slot.
+  // Preserve the official bracket topology. Provider-announced names are only
+  // accepted when they agree with the team produced by this exact fixture
+  // feed; partial/speculative future-round rows must never move a team to the
+  // other side of the draw.
   const pinned = options.pinnedSlots ?? {};
   const slotsByFixture = new Map<number, [Slot, Slot]>();
-  const stagesInPlay = Array.from(new Set(remainingFixtures.map((fixture) => fixture.stage)));
-  for (const stage of stagesInPlay) {
-    const stageFixtures = remainingFixtures.filter((fixture) => fixture.stage === stage);
-    const pool: Feed[] = [];
-    const slotSpecs: { fixture: Fixture; index: 0 | 1; token: string }[] = [];
-    for (const fixture of stageFixtures) {
-      ([fixture.team1, fixture.team2] as const).forEach((token, index) => {
-        slotSpecs.push({ fixture, index: index as 0 | 1, token });
-        const feed = tokenFeed(token);
-        if (feed) pool.push(feed);
-      });
-    }
-
-    const assigned = new Map<string, Slot>();
-    const available = [...pool].sort((a, b) => a.of - b.of);
-    const takeFeedByTeam = (team: string) => {
-      const idx = available.findIndex((feed) => {
+  for (const fixture of remainingFixtures) {
+    const resolved = resolvedById.get(fixture.id)!;
+    const slots = ([fixture.team1, fixture.team2] as const).map((token, index): Slot => {
+      const announced = pinned[fixture.id]?.[index];
+      const feed = tokenFeed(token);
+      if (feed) {
         const produced = feedTeam(feed);
-        return produced !== null && key(produced) === key(team);
-      });
-      if (idx >= 0) available.splice(idx, 1);
-    };
-
-    // Pass 1: announced teams claim their slots (and consume their feeds).
-    for (const spec of slotSpecs) {
-      const announced = pinned[spec.fixture.id]?.[spec.index];
-      if (announced) {
-        assigned.set(`${spec.fixture.id}:${spec.index}`, { kind: "team", team: announced });
-        takeFeedByTeam(announced);
+        if (produced !== null && !remainingIds.has(feed.of)) {
+          return {
+            kind: "team",
+            team: announced && key(announced) === key(produced) ? announced : produced,
+          };
+        }
+        return { kind: feed.kind, of: feed.of };
       }
-    }
-    // Pass 2: non-feed tokens resolve through the skeleton (rank tokens etc.).
-    for (const spec of slotSpecs) {
-      const slotKey = `${spec.fixture.id}:${spec.index}`;
-      if (assigned.has(slotKey) || tokenFeed(spec.token)) continue;
-      const resolved = resolvedById.get(spec.fixture.id)!;
-      const team = spec.index === 0 ? resolved.resolvedTeam1 : resolved.resolvedTeam2;
-      assigned.set(slotKey, { kind: "team", team });
-    }
-    // Pass 3: remaining feeds fill the open slots in bracket order. Settled
-    // feeds become concrete teams; open feeds stay symbolic.
-    for (const spec of slotSpecs) {
-      const slotKey = `${spec.fixture.id}:${spec.index}`;
-      if (assigned.has(slotKey)) continue;
-      const feed = available.shift();
-      if (!feed) {
-        assigned.set(slotKey, { kind: "team", team: spec.token });
-        continue;
-      }
-      const produced = feedTeam(feed);
-      assigned.set(
-        slotKey,
-        produced !== null && !remainingIds.has(feed.of)
-          ? { kind: "team", team: produced }
-          : { kind: feed.kind, of: feed.of },
-      );
-    }
 
-    for (const fixture of stageFixtures) {
-      slotsByFixture.set(fixture.id, [
-        assigned.get(`${fixture.id}:0`)!,
-        assigned.get(`${fixture.id}:1`)!,
-      ]);
-    }
+      const team = index === 0 ? resolved.resolvedTeam1 : resolved.resolvedTeam2;
+      return {
+        kind: "team",
+        team: announced && key(announced) === key(team) ? announced : team,
+      };
+    }) as [Slot, Slot];
+    slotsByFixture.set(fixture.id, slots);
   }
 
   const remaining: RemainingMatch[] = remainingFixtures.map((fixture) => ({
