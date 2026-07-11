@@ -981,6 +981,57 @@ export function scoreSubmissionReceipt(
     }
   }
 
+  const thirdPlaceResult = results.matches[103];
+  const predictedThirdPlace = predictedResolved.find((fixture) => fixture.id === 103);
+  const actualThirdPlace = actualResolved.find((fixture) => fixture.id === 103);
+  const thirdPlacePick = submission.picks[103];
+  if (thirdPlaceResult?.winner && predictedThirdPlace && actualThirdPlace && thirdPlacePick) {
+    const thirdPlace = winnerFor(
+      predictedThirdPlace.resolvedTeam1,
+      predictedThirdPlace.resolvedTeam2,
+      thirdPlacePick,
+    );
+    const fourthPlace =
+      thirdPlace === predictedThirdPlace.resolvedTeam1
+        ? predictedThirdPlace.resolvedTeam2
+        : predictedThirdPlace.resolvedTeam1;
+    const actualThird =
+      teamNameMatches(thirdPlaceResult.winner, actualThirdPlace.resolvedTeam1)
+        ? actualThirdPlace.resolvedTeam1
+        : teamNameMatches(thirdPlaceResult.winner, actualThirdPlace.resolvedTeam2)
+          ? actualThirdPlace.resolvedTeam2
+          : "";
+    const actualFourth =
+      actualThird === actualThirdPlace.resolvedTeam1
+        ? actualThirdPlace.resolvedTeam2
+        : actualThird === actualThirdPlace.resolvedTeam2
+          ? actualThirdPlace.resolvedTeam1
+          : "";
+
+    if (!isPlaceholderTeam(thirdPlace) && teamNameMatches(thirdPlace, actualThird)) {
+      addLine({
+        category: "placements",
+        label: "Third place",
+        detail: `${thirdPlace} finished third.`,
+        points: scoringRules.thirdPlace,
+        fixtureId: 103,
+        stage: "thirdPlace",
+        team: thirdPlace,
+      });
+    }
+    if (!isPlaceholderTeam(fourthPlace) && teamNameMatches(fourthPlace, actualFourth)) {
+      addLine({
+        category: "placements",
+        label: "Fourth place",
+        detail: `${fourthPlace} finished fourth.`,
+        points: scoringRules.fourthPlace,
+        fixtureId: 103,
+        stage: "thirdPlace",
+        team: fourthPlace,
+      });
+    }
+  }
+
   if (
     results.bonuses.topScorer &&
     submission.bonuses.topScorer.trim().toLowerCase() ===

@@ -27,6 +27,7 @@ import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import GoalsAssists from "@/components/GoalsAssists";
 import PredictionInsights from "@/components/PredictionInsights";
+import StillInIt from "@/components/StillInIt";
 import { fixtureKickoffDate } from "@/lib/fixture-time";
 import {
   avatarForName,
@@ -83,7 +84,7 @@ const AdministratorGame = dynamic(() => import("@/components/game/AdministratorG
   ssr: false,
 });
 
-type Tab = "predict" | "matchday" | "currentRO32" | "leaderboard" | "rules" | "titlerace" | "goals" | "insights" | "game";
+type Tab = "predict" | "matchday" | "currentRO32" | "leaderboard" | "stillin" | "rules" | "titlerace" | "goals" | "insights" | "game";
 type EntryViewTab = "summary" | "groups" | "bracket";
 type PredictionStep = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "round32" | "round16" | "quarter" | "semi" | "thirdPlace" | "final";
 type ResultsPayload = {
@@ -2792,21 +2793,21 @@ function CurrentKoTeamTooltip({
       role="status"
       aria-live="polite"
     >
+      {pinned ? (
+        <button
+          type="button"
+          className="current-ro32-owners-clear"
+          onClick={onClose}
+          aria-label="Close team tracker"
+        >
+          <X size={12} />
+        </button>
+      ) : null}
       <div className="current-ko-tooltip-head">
         <TeamPill team={team}>{team}</TeamPill>
         <span className="current-ro32-owners-count">
           {ownerCount ? `${ownerCount} of ${submissionCount} still have them` : "No entries still have them"}
         </span>
-        {pinned ? (
-          <button
-            type="button"
-            className="current-ro32-owners-clear"
-            onClick={onClose}
-            aria-label="Close team tracker"
-          >
-            <X size={12} />
-          </button>
-        ) : null}
       </div>
       {currentRun ? (
         <span className="current-ro32-owners-threshold">needs {currentRun.label}+</span>
@@ -2858,19 +2859,19 @@ function LeaderboardTeamsTooltip({
       role="status"
       aria-live="polite"
     >
+      {pinned ? (
+        <button
+          type="button"
+          className="current-ro32-owners-clear"
+          onClick={onClose}
+          aria-label="Close remaining teams"
+        >
+          <X size={12} />
+        </button>
+      ) : null}
       <div className="leaderboard-teams-tooltip-head">
         <strong>{entrantName}</strong>
         <span>{teams.length ? `${teams.length} team${teams.length === 1 ? "" : "s"} left` : "No teams left"}</span>
-        {pinned ? (
-          <button
-            type="button"
-            className="current-ro32-owners-clear"
-            onClick={onClose}
-            aria-label="Close remaining teams"
-          >
-            <X size={12} />
-          </button>
-        ) : null}
       </div>
       {teams.length ? (
         <div className="leaderboard-team-chip-grid" aria-label={`${entrantName}'s teams left`}>
@@ -3329,6 +3330,12 @@ export default function SweepstakesApp({
       setSubmissions(seededSubmissions);
       setResults(readLocal(scopedResultsKey, blankResults));
       setSubmittedEntryId(storedSubmittedEntryId);
+      // "Am I still in it?" is hidden from the menu for now — reachable only by
+      // a direct link (?view=stillin or #stillin). Read it post-hydration so
+      // the server-rendered default tab never mismatches the client.
+      const params = new URLSearchParams(window.location.search);
+      const requestedView = params.get("view") ?? window.location.hash.replace(/^#/, "");
+      if (requestedView === "stillin") setTab("stillin");
       setHydrated(true);
     });
 
@@ -3373,7 +3380,7 @@ export default function SweepstakesApp({
   ]);
 
   useEffect(() => {
-    if (!hydrated || (tab !== "leaderboard" && tab !== "matchday" && tab !== "currentRO32")) return;
+    if (!hydrated || (tab !== "leaderboard" && tab !== "matchday" && tab !== "currentRO32" && tab !== "stillin")) return;
     const firstRun = window.setTimeout(() => {
       void loadLiveResults();
     }, 0);
@@ -3627,6 +3634,8 @@ export default function SweepstakesApp({
     { key: "matchday", label: "Match days", icon: <CalendarDays size={18} /> },
     { key: "currentRO32", label: "Current KO", icon: <GitBranch size={18} /> },
     { key: "leaderboard", label: "Leaderboard", icon: <Trophy size={18} /> },
+    // "Am I still in it?" (key: "stillin") is intentionally omitted from the
+    // menu for now — it stays reachable via a direct link (?view=stillin).
     { key: "rules", label: "Scoring", icon: <CheckCircle2 size={18} /> },
     { key: "titlerace", label: "Title race", icon: <CarFront size={18} /> },
     { key: "goals", label: "Goals & assists", icon: <Medal size={18} /> },
@@ -3648,6 +3657,9 @@ export default function SweepstakesApp({
     },
     leaderboard: {
       h1: "The\nTable",
+    },
+    stillin: {
+      h1: "Still\nIn It?",
     },
     matchday: {
       h1: "Match\nDays",
@@ -3677,7 +3689,9 @@ export default function SweepstakesApp({
   const recapHref = isDefaultTournament
     ? "/recap.html?embed=1"
     : `/recap.html?tournament=${encodeURIComponent(tournament.slug)}&embed=1`;
-  const activeNavLabel = navItems.find((item) => item.key === tab)?.label ?? "Menu";
+  const activeNavLabel =
+    navItems.find((item) => item.key === tab)?.label ??
+    (tab === "stillin" ? "Am I still in it?" : "Menu");
 
   function moveStep(offset: number) {
     const next = Math.max(0, Math.min(predictionSteps.length - 1, activeStepIndex + offset));
@@ -3825,6 +3839,8 @@ export default function SweepstakesApp({
 
         {tab === "titlerace" ? (
           <TitleRaceFrame src={recapHref} />
+        ) : tab === "stillin" ? (
+          <StillInIt submissions={submissions} results={results} ownSubmissionId={ownSubmission?.id ?? submittedEntryId} />
         ) : tab === "goals" ? (
           <GoalsAssists embedded tournament={tournament} submissions={submissions} />
         ) : tab === "insights" ? (
@@ -4185,6 +4201,8 @@ export default function SweepstakesApp({
                     <div className="rules-row"><span>Finalist</span><b>+{scoringRules.finalist}</b></div>
                     <div className="rules-row"><span>Champion</span><b>+{scoringRules.champion}</b></div>
                     <div className="rules-row"><span>Runner-up</span><b>+{scoringRules.runnerUp}</b></div>
+                    <div className="rules-row"><span>Third place</span><b>+{scoringRules.thirdPlace}</b></div>
+                    <div className="rules-row"><span>Fourth place</span><b>+{scoringRules.fourthPlace}</b></div>
                   </div>
                   <div className="rules-section">
                     <div className="rules-section-title">Bonus picks</div>

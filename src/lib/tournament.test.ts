@@ -9,6 +9,7 @@ import {
   resolveFixtures,
   scoringRules,
   scoreSubmission,
+  scoreSubmissionReceipt,
   winnerFor,
 } from "@/lib/tournament";
 import type { Fixture, Submission, TournamentResults } from "@/types/game";
@@ -292,6 +293,63 @@ test("unsettled knockout draws do not advance a placeholder team", () => {
 
   assert.equal(round16.resolvedTeam1, "W73");
   assert.equal(scoreSubmission(submission, results).placements, 0);
+});
+
+test("third-place match winner and loser earn placement bonuses", () => {
+  const picks = createEmptyPicks();
+  Object.keys(picks).forEach((fixtureId) => {
+    picks[Number(fixtureId)] = { fixtureId: Number(fixtureId), home: 1, away: 0 };
+  });
+  const predictedThirdPlace = resolveFixtures(picks).find((fixture) => fixture.id === 103);
+  assert.ok(predictedThirdPlace);
+  const thirdPlace = predictedThirdPlace.resolvedTeam1;
+  const fourthPlace = predictedThirdPlace.resolvedTeam2;
+
+  const submission: Submission = {
+    id: "third-place-bonus",
+    name: "Third Place Bonus",
+    createdAt: "2026-06-01T00:00:00.000Z",
+    picks,
+    bonuses: emptyBonuses(),
+  };
+  const results: TournamentResults = {
+    matches: {
+      103: {
+        fixtureId: 103,
+        team1: thirdPlace,
+        team2: fourthPlace,
+        home: 1,
+        away: 0,
+        winner: thirdPlace,
+        status: "completed",
+      },
+    },
+    bonuses: emptyBonuses(),
+    updatedAt: "2026-07-18T23:00:00.000Z",
+  };
+
+  const receipt = scoreSubmissionReceipt(submission, results);
+
+  assert.ok(
+    receipt.lines.some(
+      (line) =>
+        line.label === "Third place" &&
+        line.team === thirdPlace &&
+        line.points === scoringRules.thirdPlace,
+    ),
+  );
+  assert.ok(
+    receipt.lines.some(
+      (line) =>
+        line.label === "Fourth place" &&
+        line.team === fourthPlace &&
+        line.points === scoringRules.fourthPlace,
+    ),
+  );
+  assert.equal(
+    receipt.categories.placements,
+    scoringRules.thirdPlace + scoringRules.fourthPlace,
+  );
 });
 
 test("fresh picks lock an original champion through the full available final route", () => {
