@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { refreshStoredPlayerStats } from "@/lib/player-stats";
 import { refreshStoredResults } from "@/lib/results";
+import { refreshStoredMessiReferees } from "@/lib/messi-referees";
 
 function isAdminRequest(request: Request) {
   const adminKey = process.env.ADMIN_RESULTS_KEY;
@@ -22,12 +23,14 @@ export async function POST(request: Request) {
   try {
     const results = await refreshStoredResults(request);
     const playerStats = await refreshStoredPlayerStats();
+    const messiReferees = await refreshStoredMessiReferees();
     const resultsWarning = "warning" in results ? results.warning : undefined;
 
     return NextResponse.json({
       results,
       playerStats,
-      warning: playerStats.warning ?? resultsWarning,
+      messiReferees,
+      warning: playerStats.warning ?? messiReferees.warning ?? resultsWarning,
     });
   } catch (error) {
     return NextResponse.json(

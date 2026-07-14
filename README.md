@@ -102,3 +102,11 @@ or stale; that final fallback currently includes scorers but not assists.
 The default player-stat cap is 120 calls/day. A FIFA/Firecrawl refresh costs 1
 tracked player-stat call. API-Football is kept as an event-data fallback, but
 its free plan may not include World Cup 2026 data or batched fixture lookups.
+
+The same nightly cron also uses Firecrawl to refresh the Messi referee ledger
+from `https://www.messistats.com/en/referee`. The normalized snapshot is cached
+as the `messi-referees` row in the existing `results` table, so page views never
+call Firecrawl directly. A scrape must contain at least 200 unique referees and
+1,000 tracked games before it can replace the saved snapshot; partial or failed
+scrapes leave the previous data intact. Set `MESSI_REFEREE_STATS_URL` only when
+you need to override the source URL.

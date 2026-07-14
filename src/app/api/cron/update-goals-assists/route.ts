@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { refreshStoredPlayerStats } from "@/lib/player-stats";
 import { refreshStoredResults } from "@/lib/results";
+import { refreshStoredMessiReferees } from "@/lib/messi-referees";
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -11,10 +12,12 @@ export async function GET(request: Request) {
   try {
     const results = await refreshStoredResults(request);
     const playerStats = await refreshStoredPlayerStats();
+    const messiReferees = await refreshStoredMessiReferees();
     return NextResponse.json({
       results,
       playerStats,
-      warning: playerStats.warning ?? results.warning,
+      messiReferees,
+      warning: playerStats.warning ?? messiReferees.warning ?? results.warning,
     });
   } catch (error) {
     return NextResponse.json(

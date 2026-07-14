@@ -9486,3 +9486,567 @@ body:has(.wr-page) {
   margin: 32px auto;
   color: var(--muted);
 }
+
+/* ── Messi referee ledger ── */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.tabs button.tab-subitem {
+  position: relative;
+  min-height: 38px;
+  padding-left: 2.55rem;
+  font-size: 0.69rem;
+  color: rgba(245, 239, 224, 0.62);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.tabs button.tab-subitem::before {
+  content: "";
+  position: absolute;
+  left: 1.45rem;
+  top: -8px;
+  width: 7px;
+  height: 27px;
+  border-left: 1px solid rgba(245, 239, 224, 0.25);
+  border-bottom: 1px solid rgba(245, 239, 224, 0.25);
+}
+
+.tabs button.tab-subitem.active {
+  color: #fff;
+  background: rgba(200, 0, 30, 0.22);
+}
+
+.messi-ref-page {
+  width: min(1280px, 100%);
+  margin: 1.25rem 0 4rem;
+  display: grid;
+  gap: 1rem;
+  animation: panelEnter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.messi-ref-page > * {
+  min-width: 0;
+}
+
+.messi-ref-intro {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: clamp(1.5rem, 4vw, 5rem);
+  padding: clamp(1.35rem, 4vw, 3rem);
+  overflow: hidden;
+  border-top: 7px solid #111;
+  border-bottom: 1px solid var(--line-strong);
+  background:
+    linear-gradient(110deg, rgba(255, 255, 255, 0.7), rgba(255, 253, 249, 0.18)),
+    repeating-linear-gradient(90deg, transparent 0, transparent 63px, rgba(0, 0, 0, 0.025) 64px);
+}
+
+.messi-ref-intro::after {
+  content: "10";
+  position: absolute;
+  right: 18%;
+  bottom: -0.29em;
+  z-index: 0;
+  color: rgba(200, 0, 30, 0.055);
+  font: 800 clamp(9rem, 23vw, 21rem)/0.75 var(--font-display), sans-serif;
+  letter-spacing: -0.08em;
+  pointer-events: none;
+}
+
+.messi-ref-heading,
+.messi-ref-total {
+  position: relative;
+  z-index: 1;
+}
+
+.messi-ref-heading h2 {
+  max-width: 800px;
+  margin: 0.2rem 0 0.75rem;
+  font: 800 clamp(2.1rem, 5vw, 4.8rem)/0.9 var(--font-display), sans-serif;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+}
+
+.messi-ref-heading p {
+  max-width: 710px;
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: clamp(0.84rem, 1.2vw, 1rem);
+  line-height: 1.65;
+}
+
+.messi-ref-total {
+  min-width: 176px;
+  display: grid;
+  justify-items: end;
+  padding: 1.1rem 0 0.1rem 1.3rem;
+  border-left: 1px solid var(--line-strong);
+  color: var(--red);
+}
+
+.messi-ref-total strong {
+  font: 800 clamp(3.4rem, 7vw, 6.7rem)/0.8 var(--font-display), sans-serif;
+  letter-spacing: -0.06em;
+}
+
+.messi-ref-total span {
+  margin-top: 0.7rem;
+  color: var(--fg);
+  font: 800 0.67rem/1 var(--font-display), sans-serif;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.messi-ref-scoreboard {
+  display: grid;
+  grid-template-columns: 1.5fr repeat(3, minmax(92px, 0.62fr)) 1.1fr;
+  min-height: 132px;
+  overflow: hidden;
+  color: white;
+  background: #111;
+  border-bottom: 5px solid var(--red);
+}
+
+.messi-ref-scoreboard article {
+  position: relative;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  padding: 1rem clamp(0.8rem, 2vw, 1.55rem);
+  border-right: 1px solid rgba(255, 255, 255, 0.13);
+}
+
+.messi-ref-scoreboard article:last-child {
+  border-right: 0;
+}
+
+.messi-ref-scoreboard span,
+.messi-ref-scoreboard small {
+  color: rgba(255, 255, 255, 0.58);
+  font: 700 0.61rem/1.2 var(--font-display), sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.messi-ref-scoreboard strong {
+  margin: 0.12rem 0;
+  font: 800 clamp(2.1rem, 4vw, 4rem)/0.9 var(--font-display), sans-serif;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.messi-ref-scoreboard article > span:first-child {
+  color: var(--red-bright);
+}
+
+.messi-ref-scoreboard .is-win > span:first-child {
+  color: #75d98a;
+}
+
+.messi-ref-scoreboard .is-draw > span:first-child {
+  color: #e3bd59;
+}
+
+.messi-ref-ledger {
+  min-width: 0;
+  border: 1px solid var(--line-strong);
+  background: rgba(254, 252, 245, 0.82);
+  box-shadow: var(--shadow-card);
+}
+
+.messi-ref-toolbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: clamp(1rem, 2.5vw, 1.6rem);
+  border-bottom: 4px double #111;
+}
+
+.messi-ref-toolbar h3 {
+  margin: 0.15rem 0 0;
+  font: 800 clamp(1.65rem, 3vw, 2.55rem)/0.95 var(--font-display), sans-serif;
+  text-transform: uppercase;
+}
+
+.messi-ref-controls {
+  min-width: min(100%, 470px);
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(155px, 0.65fr);
+  gap: 0.55rem;
+}
+
+.messi-ref-search {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 44px;
+  padding: 0 0.8rem;
+  border: 1px solid var(--line-strong);
+  background: #fffdf9;
+  color: var(--muted-strong);
+}
+
+.messi-ref-search:focus-within,
+.messi-ref-country select:focus {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px var(--red-light);
+  outline: none;
+}
+
+.messi-ref-search input {
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--fg);
+  font-family: var(--font-body), serif;
+  font-size: 0.78rem;
+}
+
+.messi-ref-country select {
+  width: 100%;
+  height: 44px;
+  padding: 0 2rem 0 0.75rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0;
+  background-color: #fffdf9;
+  color: var(--fg);
+  font: 700 0.7rem var(--font-display), sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.messi-ref-result-count {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 36px;
+  padding: 0.45rem clamp(0.8rem, 2vw, 1.2rem);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted-strong);
+  font: 600 0.68rem var(--font-display), sans-serif;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.messi-ref-result-count strong {
+  color: var(--red);
+}
+
+.messi-ref-table-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-color: var(--red) var(--bg-warm);
+}
+
+.messi-ref-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-variant-numeric: tabular-nums;
+}
+
+.messi-ref-table th,
+.messi-ref-table td {
+  padding: 0.72rem 0.7rem;
+  border-bottom: 1px dotted rgba(0, 0, 0, 0.18);
+  text-align: right;
+  vertical-align: middle;
+}
+
+.messi-ref-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding-block: 0;
+  border-bottom: 2px solid #111;
+  background: var(--bg-warm);
+}
+
+.messi-ref-table thead button {
+  width: 100%;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted-strong);
+  font: 800 0.68rem var(--font-display), sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.messi-ref-table thead button:hover,
+.messi-ref-table thead button.active {
+  color: var(--red);
+}
+
+.messi-ref-table thead button span {
+  width: 0.8rem;
+  color: var(--red);
+}
+
+.messi-ref-table th:nth-child(2),
+.messi-ref-table td:nth-child(2),
+.messi-ref-table th:nth-child(3),
+.messi-ref-table td:nth-child(3) {
+  text-align: left;
+}
+
+.messi-ref-table thead th:nth-child(2) button,
+.messi-ref-table thead th:nth-child(3) button {
+  justify-content: flex-start;
+}
+
+.messi-ref-table th:nth-child(2) {
+  width: 28%;
+}
+
+.messi-ref-table th:nth-child(3) {
+  width: 18%;
+}
+
+.messi-ref-table .messi-ref-rank {
+  width: 62px;
+  color: rgba(0, 0, 0, 0.36);
+  font: 700 0.64rem var(--font-display), sans-serif;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+.messi-ref-table tbody th {
+  background: transparent;
+  color: inherit;
+  font-weight: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.messi-ref-table tbody th strong {
+  display: block;
+  overflow: hidden;
+  color: var(--fg);
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.79rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.messi-ref-table tbody th small {
+  display: none;
+  margin-top: 0.15rem;
+  color: var(--muted);
+  font-size: 0.6rem;
+  line-height: 1.2;
+}
+
+.messi-ref-table tbody td {
+  color: var(--muted-strong);
+  font-size: 0.76rem;
+}
+
+.messi-ref-table tbody tr:nth-child(even) {
+  background: rgba(237, 230, 211, 0.34);
+}
+
+.messi-ref-table tbody tr:hover {
+  background: rgba(200, 0, 30, 0.055);
+}
+
+.messi-ref-table .messi-ref-gp {
+  color: var(--fg);
+  font-weight: 900;
+}
+
+.messi-ref-table .messi-ref-win {
+  color: var(--green);
+  font-weight: 800;
+}
+
+.messi-ref-table .messi-ref-loss {
+  color: var(--red);
+  font-weight: 800;
+}
+
+.messi-ref-table .messi-ref-rate-col {
+  width: 84px;
+  font-weight: 800;
+}
+
+.messi-ref-empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+  padding: 4rem 1rem;
+  color: var(--muted-strong);
+  text-align: center;
+}
+
+.messi-ref-empty strong {
+  color: var(--fg);
+  font: 800 1.25rem var(--font-display), sans-serif;
+  text-transform: uppercase;
+}
+
+.messi-ref-empty span {
+  font-size: 0.78rem;
+}
+
+.messi-ref-source {
+  padding: 0.85rem 1.1rem;
+  border-top: 3px double #111;
+  background: var(--bg-warm);
+}
+
+.messi-ref-source p {
+  max-width: 920px;
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 0.68rem;
+  font-style: italic;
+  line-height: 1.6;
+}
+
+.messi-ref-source a {
+  color: var(--red);
+  font-weight: 800;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+@media (max-width: 1080px) and (min-width: 781px) {
+  .tabs button.tab-subitem {
+    min-height: 46px;
+    padding-left: 0.85rem;
+    font-size: 0.7rem;
+    background: transparent;
+  }
+
+  .tabs button.tab-subitem::before {
+    display: none;
+  }
+}
+
+@media (max-width: 780px) {
+  .tabs button.tab-subitem {
+    padding-left: 2.8rem;
+    font-size: 0.8rem;
+  }
+
+  .tabs button.tab-subitem::before {
+    left: 1.55rem;
+    top: -9px;
+    height: 30px;
+  }
+
+  .messi-ref-page {
+    margin-top: 0.75rem;
+  }
+
+  .messi-ref-intro {
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 1.2rem;
+  }
+
+  .messi-ref-total {
+    min-width: 0;
+    justify-items: start;
+    padding: 1rem 0 0;
+    border-top: 1px solid var(--line-strong);
+    border-left: 0;
+  }
+
+  .messi-ref-total svg {
+    display: none;
+  }
+
+  .messi-ref-total strong {
+    font-size: 3.8rem;
+  }
+
+  .messi-ref-scoreboard {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .messi-ref-score-main,
+  .messi-ref-rate {
+    grid-column: span 3;
+  }
+
+  .messi-ref-scoreboard article {
+    min-height: 92px;
+  }
+
+  .messi-ref-scoreboard .messi-ref-score-main,
+  .messi-ref-scoreboard .messi-ref-rate {
+    min-height: 110px;
+  }
+
+  .messi-ref-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .messi-ref-controls {
+    min-width: 0;
+  }
+
+  .messi-ref-table {
+    min-width: 610px;
+  }
+
+  .messi-ref-table .messi-ref-rank,
+  .messi-ref-table .messi-ref-country-col {
+    display: none;
+  }
+
+  .messi-ref-table th:nth-child(2) {
+    width: 230px;
+  }
+
+  .messi-ref-table tbody th small {
+    display: block;
+  }
+}
+
+@media (max-width: 520px) {
+  .messi-ref-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .messi-ref-intro::after {
+    right: -4%;
+  }
+
+  .messi-ref-heading h2 {
+    font-size: clamp(2rem, 11vw, 3.15rem);
+  }
+
+  .messi-ref-scoreboard strong {
+    font-size: 2.25rem;
+  }
+}

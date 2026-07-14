@@ -18,6 +18,7 @@ import {
   Shuffle,
   Sparkles,
   Trophy,
+  UserRoundSearch,
   X,
 } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -26,6 +27,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import GoalsAssists from "@/components/GoalsAssists";
+import MessiRefStats from "@/components/MessiRefStats";
 import PredictionInsights from "@/components/PredictionInsights";
 import StillInIt from "@/components/StillInIt";
 import { fixtureKickoffDate } from "@/lib/fixture-time";
@@ -84,7 +86,7 @@ const AdministratorGame = dynamic(() => import("@/components/game/AdministratorG
   ssr: false,
 });
 
-type Tab = "predict" | "matchday" | "currentRO32" | "leaderboard" | "stillin" | "rules" | "titlerace" | "goals" | "insights" | "game";
+type Tab = "predict" | "matchday" | "currentRO32" | "leaderboard" | "stillin" | "rules" | "titlerace" | "goals" | "insights" | "messiRefs" | "game";
 type EntryViewTab = "summary" | "groups" | "bracket";
 type PredictionStep = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "round32" | "round16" | "quarter" | "semi" | "thirdPlace" | "final";
 type ResultsPayload = {
@@ -3623,7 +3625,7 @@ export default function SweepstakesApp({
     if (activeStepMeta.kind !== "group") return [];
     return groupTeams().find((item) => item.group === activeStepMeta.id)?.teams ?? [];
   }, [activeStepMeta]);
-  const navItems: Array<{ key: Tab; label: string; icon: ReactNode }> = [
+  const navItems: Array<{ key: Tab; label: string; icon: ReactNode; subItem?: boolean }> = [
     ...(!hasSubmittedEntry
       ? [{
           key: "predict" as const,
@@ -3640,6 +3642,12 @@ export default function SweepstakesApp({
     { key: "titlerace", label: "Title race", icon: <CarFront size={18} /> },
     { key: "goals", label: "Goals & assists", icon: <Medal size={18} /> },
     { key: "insights", label: "Fun facts", icon: <CircleQuestionMark size={18} /> },
+    {
+      key: "messiRefs",
+      label: "Messi ref stats",
+      icon: <UserRoundSearch size={17} />,
+      subItem: true,
+    },
     {
       key: "game",
       label: "Admin Space",
@@ -3678,6 +3686,9 @@ export default function SweepstakesApp({
     },
     insights: {
       h1: "Fun\nFacts",
+    },
+    messiRefs: {
+      h1: "Messi\nRef Stats",
     },
     game: {
       h1: "Admin Space",
@@ -3769,7 +3780,7 @@ export default function SweepstakesApp({
           {navItems.map((item) => (
             <button
               key={item.key}
-              className={tab === item.key ? "active" : ""}
+              className={`${tab === item.key ? "active" : ""}${item.subItem ? " tab-subitem" : ""}`}
               onClick={() => {
                 setTab(item.key);
                 setMenuOpen(false);
@@ -3845,6 +3856,8 @@ export default function SweepstakesApp({
           <GoalsAssists embedded tournament={tournament} submissions={submissions} />
         ) : tab === "insights" ? (
           <PredictionInsights embedded tournament={tournament} />
+        ) : tab === "messiRefs" ? (
+          <MessiRefStats />
         ) : tab === "game" ? (
           <div className="adm-page adm-embedded">
             <AdministratorGame embedded />
