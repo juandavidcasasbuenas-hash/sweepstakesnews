@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { messiRefereeRecords } from "@/data/messi-referees";
+import {
+  bundledArgentinaWorldCup2026Referees,
+  isRefereeInList,
+  isWorldCup2026Referee,
+  worldCup2026Referees,
+} from "@/data/world-cup-2026-referees";
 
 test("Messi referee ledger contains the complete normalized snapshot", () => {
   assert.equal(messiRefereeRecords.length, 258);
@@ -30,4 +36,11 @@ test("duplicate source referee identities are combined", () => {
     messiRefereeRecords.find((row) => row.name === "François Letexier"),
     { name: "François Letexier", country: "France", games: 9, wins: 6, losses: 2, draws: 1 },
   );
+});
+
+test("World Cup referee cross-references tolerate accents and FIFA aliases", () => {
+  assert.equal(worldCup2026Referees.length, 52);
+  assert.equal(isWorldCup2026Referee("François Letexier"), true);
+  assert.equal(isWorldCup2026Referee("Saíd Martínez"), true);
+  assert.equal(isRefereeInList("João Pinheiro", bundledArgentinaWorldCup2026Referees), true);
 });

@@ -3,16 +3,25 @@ import {
   messiRefereeSource,
   type MessiRefereeRecord,
 } from "@/data/messi-referees";
+import {
+  argentinaWorldCup2026RefereeSource,
+  bundledArgentinaWorldCup2026Referees,
+  isWorldCup2026Referee,
+  refereeNameKey,
+} from "@/data/world-cup-2026-referees";
 import { getSupabase } from "@/lib/supabase";
 
 const FIRECRAWL_SCRAPE_URL = "https://api.firecrawl.dev/v2/scrape";
 const MESSI_REFEREE_URL = "https://www.messistats.com/en/referee";
+const ARGENTINA_WORLD_CUP_2026_URL = argentinaWorldCup2026RefereeSource.url;
 const MESSI_REFEREE_ROW_ID = "messi-referees";
 const MINIMUM_SAFE_REFEREE_COUNT = 200;
 const MINIMUM_SAFE_GAME_COUNT = 1000;
 
 export type MessiRefereeSnapshot = {
   records: MessiRefereeRecord[];
+  argentinaWorldCup2026Referees?: string[];
+  argentinaWorldCup2026SourceUrl?: string;
   sourceRows: number;
   sourceUrl: string;
   updatedAt: string;
@@ -29,6 +38,8 @@ type MessiRefereeWrite = MessiRefereeRead & {
 
 const bundledSnapshot: MessiRefereeSnapshot = {
   records: messiRefereeRecords,
+  argentinaWorldCup2026Referees: [...bundledArgentinaWorldCup2026Referees],
+  argentinaWorldCup2026SourceUrl: ARGENTINA_WORLD_CUP_2026_URL,
   sourceRows: messiRefereeSource.sourceRows,
   sourceUrl: messiRefereeSource.url,
   updatedAt: "2026-07-14T00:00:00.000Z",
@@ -116,11 +127,40 @@ export function parseMessiRefereeHtml(html: string) {
   };
 }
 
+export function parseArgentinaWorldCup2026Referees(content: string) {
+  const referees: string[] = [];
+  const add = (value: string) => {
+    const name = htmlText(value);
+    if (name && name !== "Referee" && isWorldCup2026Referee(name)) referees.push(name);
+  };
+
+  for (const match of content.matchAll(
+    /<(?:td|th)[^>]*data-stat=["']referee["'][^>]*>([\s\S]*?)<\/(?:td|th)>/gi,
+  )) {
+    add(match[1]);
+  }
+
+  const lines = content.split(/\r?\n/).filter((line) => line.includes("|"));
+  const header = lines.find((line) => line.split("|").some((cell) => cell.trim() === "Referee"));
+  if (header) {
+    const headerCells = header.split("|").map((cell) => cell.trim());
+    const refereeIndex = headerCells.indexOf("Referee");
+    const headerIndex = lines.indexOf(header);
+    for (const line of lines.slice(headerIndex + 1)) {
+      const cells = line.split("|").map((cell) => cell.trim());
+      if (cells.every((cell) => !cell || /^:?-+:?$/.test(cell))) continue;
+      if (refereeIndex >= 0 && cells[refereeIndex]) add(cells[refereeIndex]);
+    }
+  }
+
+  return Array.from(new Map(referees.map((name) => [refereeNameKey(name), name])).values());
+}
+
 function firecrawlApiKey() {
   return process.env.FIRECRAWL_API_KEY ?? process.env.FIRECRAWL_KEY;
 }
 
-async function fetchMessiRefereeSnapshot(): Promise<MessiRefereeSnapshot> {
+async function scrapeWithFirecrawl(url: string, formats: string[]) {
   const apiKey = firecrawlApiKey();
   if (!apiKey) throw new Error("Firecrawl is not configured; using the saved Messi referee snapshot.");
 
@@ -131,8 +171,8 @@ async function fetchMessiRefereeSnapshot(): Promise<MessiRefereeSnapshot> {
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      url: process.env.MESSI_REFEREE_STATS_URL ?? MESSI_REFEREE_URL,
-      formats: ["html"],
+      url,
+      formats,
       onlyMainContent: false,
       maxAge: 0,
       waitFor: 3000,
@@ -148,7 +188,25 @@ async function fetchMessiRefereeSnapshot(): Promise<MessiRefereeSnapshot> {
 
   const payload = asRecord(await response.json());
   const data = asRecord(payload.data);
-  const html = firstString(data.html, payload.html) ?? "";
+  return {
+    html: firstString(data.html, payload.html) ?? "",
+    markdown: firstString(data.markdown, payload.markdown) ?? "",
+  };
+}
+
+async function fetchMessiRefereeSnapshot(
+  previous: MessiRefereeSnapshot,
+): Promise<MessiRefereeSnapshot> {
+  const refereeUrl = process.env.MESSI_REFEREE_STATS_URL ?? MESSI_REFEREE_URL;
+  const argentinaUrl =
+    process.env.ARGENTINA_WORLD_CUP_2026_REFEREES_URL ?? ARGENTINA_WORLD_CUP_2026_URL;
+  const [mainScrape, argentinaScrape] = await Promise.allSettled([
+    scrapeWithFirecrawl(refereeUrl, ["html"]),
+    scrapeWithFirecrawl(argentinaUrl, ["html", "markdown"]),
+  ]);
+  if (mainScrape.status === "rejected") throw mainScrape.reason;
+
+  const html = mainScrape.value.html;
   const parsed = parseMessiRefereeHtml(html);
   const games = parsed.records.reduce((sum, row) => sum + row.games, 0);
   if (parsed.records.length < MINIMUM_SAFE_REFEREE_COUNT || games < MINIMUM_SAFE_GAME_COUNT) {
@@ -157,10 +215,24 @@ async function fetchMessiRefereeSnapshot(): Promise<MessiRefereeSnapshot> {
     );
   }
 
+  const scrapedArgentinaReferees =
+    argentinaScrape.status === "fulfilled"
+      ? parseArgentinaWorldCup2026Referees(
+          `${argentinaScrape.value.html}\n${argentinaScrape.value.markdown}`,
+        )
+      : [];
+  const argentinaWorldCup2026Referees = scrapedArgentinaReferees.length
+    ? scrapedArgentinaReferees
+    : previous.argentinaWorldCup2026Referees?.length
+      ? previous.argentinaWorldCup2026Referees
+      : [...bundledArgentinaWorldCup2026Referees];
+
   return {
     records: parsed.records,
+    argentinaWorldCup2026Referees,
+    argentinaWorldCup2026SourceUrl: argentinaUrl,
     sourceRows: parsed.sourceRows,
-    sourceUrl: process.env.MESSI_REFEREE_STATS_URL ?? MESSI_REFEREE_URL,
+    sourceUrl: refereeUrl,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -202,7 +274,7 @@ async function writeStoredMessiReferees(snapshot: MessiRefereeSnapshot): Promise
 export async function refreshStoredMessiReferees(): Promise<MessiRefereeWrite> {
   const stored = await readStoredMessiReferees();
   try {
-    return await writeStoredMessiReferees(await fetchMessiRefereeSnapshot());
+    return await writeStoredMessiReferees(await fetchMessiRefereeSnapshot(stored.snapshot));
   } catch (error) {
     return {
       ...stored,

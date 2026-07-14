@@ -1,18 +1,27 @@
 "use client";
 
-import { ArrowDownUp, Search, UserRoundSearch } from "lucide-react";
+import { ArrowDownUp, BadgeCheck, Flag, Search, UserRoundSearch } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   messiRefereeRecords,
   messiRefereeSource,
   type MessiRefereeRecord,
 } from "@/data/messi-referees";
+import {
+  argentinaWorldCup2026RefereeSource,
+  bundledArgentinaWorldCup2026Referees,
+  isRefereeInList,
+  isWorldCup2026Referee,
+  worldCup2026RefereeSource,
+} from "@/data/world-cup-2026-referees";
 
 type SortKey = "name" | "country" | "games" | "wins" | "losses" | "draws" | "winRate";
 type SortDirection = "asc" | "desc";
 type RefereeApiPayload = {
   snapshot?: {
     records?: MessiRefereeRecord[];
+    argentinaWorldCup2026Referees?: string[];
+    argentinaWorldCup2026SourceUrl?: string;
     sourceRows?: number;
     sourceUrl?: string;
     updatedAt?: string;
@@ -58,6 +67,12 @@ function SortButton({
 
 export default function MessiRefStats() {
   const [records, setRecords] = useState(messiRefereeRecords);
+  const [argentinaWorldCupReferees, setArgentinaWorldCupReferees] = useState<string[]>([
+    ...bundledArgentinaWorldCup2026Referees,
+  ]);
+  const [argentinaWorldCupSourceUrl, setArgentinaWorldCupSourceUrl] = useState<string>(
+    argentinaWorldCup2026RefereeSource.url,
+  );
   const [sourceMeta, setSourceMeta] = useState<{
     sourceRows: number;
     sourceUrl: string;
@@ -69,6 +84,8 @@ export default function MessiRefStats() {
   });
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState("all");
+  const [worldCupOnly, setWorldCupOnly] = useState(false);
+  const [argentinaWorldCupOnly, setArgentinaWorldCupOnly] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("games");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
@@ -79,6 +96,13 @@ export default function MessiRefStats() {
       .then((payload: RefereeApiPayload) => {
         if (cancelled || !payload.snapshot?.records?.length) return;
         setRecords(payload.snapshot.records);
+        if (payload.snapshot.argentinaWorldCup2026Referees?.length) {
+          setArgentinaWorldCupReferees(payload.snapshot.argentinaWorldCup2026Referees);
+        }
+        setArgentinaWorldCupSourceUrl(
+          payload.snapshot.argentinaWorldCup2026SourceUrl ??
+            argentinaWorldCup2026RefereeSource.url,
+        );
         setSourceMeta({
           sourceRows: payload.snapshot.sourceRows ?? payload.snapshot.records.length,
           sourceUrl: payload.snapshot.sourceUrl ?? messiRefereeSource.url,
@@ -110,11 +134,25 @@ export default function MessiRefStats() {
     [records],
   );
 
+  const worldCupRecordCount = useMemo(
+    () => records.filter((row) => isWorldCup2026Referee(row.name)).length,
+    [records],
+  );
+
+  const argentinaWorldCupRecordCount = useMemo(
+    () =>
+      records.filter((row) => isRefereeInList(row.name, argentinaWorldCupReferees)).length,
+    [argentinaWorldCupReferees, records],
+  );
+
   const visibleRows = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
     return records
       .filter(
         (row) =>
+          (!worldCupOnly || isWorldCup2026Referee(row.name)) &&
+          (!argentinaWorldCupOnly ||
+            isRefereeInList(row.name, argentinaWorldCupReferees)) &&
           (country === "all" || row.country === country) &&
           (!normalizedQuery ||
             row.name.toLocaleLowerCase().includes(normalizedQuery) ||
@@ -132,7 +170,16 @@ export default function MessiRefStats() {
         if (result === 0) result = collator.compare(a.name, b.name);
         return sortDirection === "asc" ? result : -result;
       });
-  }, [country, query, records, sortDirection, sortKey]);
+  }, [
+    argentinaWorldCupOnly,
+    argentinaWorldCupReferees,
+    country,
+    query,
+    records,
+    sortDirection,
+    sortKey,
+    worldCupOnly,
+  ]);
 
   function sortBy(column: SortKey) {
     if (column === sortKey) {
@@ -184,6 +231,26 @@ export default function MessiRefStats() {
             <h3 id="messi-ref-ledger-title">The referee index</h3>
           </div>
           <div className="messi-ref-controls">
+            <button
+              type="button"
+              className={`messi-ref-wc-filter${worldCupOnly ? " active" : ""}`}
+              aria-pressed={worldCupOnly}
+              onClick={() => setWorldCupOnly((current) => !current)}
+            >
+              <BadgeCheck size={17} aria-hidden="true" />
+              <span>World Cup 2026</span>
+              <strong>{worldCupRecordCount}</strong>
+            </button>
+            <button
+              type="button"
+              className={`messi-ref-wc-filter is-argentina${argentinaWorldCupOnly ? " active" : ""}`}
+              aria-pressed={argentinaWorldCupOnly}
+              onClick={() => setArgentinaWorldCupOnly((current) => !current)}
+            >
+              <Flag size={16} aria-hidden="true" />
+              <span>Argentina at WC26</span>
+              <strong>{argentinaWorldCupRecordCount}</strong>
+            </button>
             <label className="messi-ref-search">
               <Search size={17} aria-hidden="true" />
               <span className="sr-only">Search referees or countries</span>
@@ -207,6 +274,11 @@ export default function MessiRefStats() {
         <div className="messi-ref-result-count" aria-live="polite">
           <ArrowDownUp size={14} aria-hidden="true" />
           Showing <strong>{visibleRows.length}</strong> of {records.length} referees
+          <span className="messi-ref-wc-legend">
+            <BadgeCheck size={14} aria-hidden="true" /> WC 26 = appointed referee
+            <span aria-hidden="true">·</span>
+            <Flag size={13} aria-hidden="true" /> ARG = Argentina match
+          </span>
         </div>
 
         <div className="messi-ref-table-wrap">
@@ -224,21 +296,43 @@ export default function MessiRefStats() {
               </tr>
             </thead>
             <tbody>
-              {visibleRows.map((row, index) => (
-                <tr key={`${row.name}-${row.country}`}>
-                  <td className="messi-ref-rank">{String(index + 1).padStart(3, "0")}</td>
-                  <th scope="row">
-                    <strong>{row.name}</strong>
-                    <small>{row.country}</small>
-                  </th>
-                  <td className="messi-ref-country-col">{row.country}</td>
-                  <td className="messi-ref-gp">{row.games}</td>
-                  <td className="messi-ref-win">{row.wins}</td>
-                  <td className="messi-ref-loss">{row.losses}</td>
-                  <td>{row.draws}</td>
-                  <td className="messi-ref-rate-col">{percent(rate(row))}</td>
-                </tr>
-              ))}
+              {visibleRows.map((row, index) => {
+                const atWorldCup = isWorldCup2026Referee(row.name);
+                const handledArgentina = isRefereeInList(row.name, argentinaWorldCupReferees);
+                const rowClasses = [
+                  atWorldCup ? "is-world-cup-ref" : "",
+                  handledArgentina ? "is-argentina-wc-ref" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ");
+                return (
+                  <tr className={rowClasses} key={`${row.name}-${row.country}`}>
+                    <td className="messi-ref-rank">{String(index + 1).padStart(3, "0")}</td>
+                    <th scope="row">
+                      <span className="messi-ref-name-line">
+                        <strong>{row.name}</strong>
+                        {atWorldCup ? (
+                          <span className="messi-ref-wc-badge" title="Appointed referee at the FIFA World Cup 2026">
+                            <BadgeCheck size={11} aria-hidden="true" /> WC 26
+                          </span>
+                        ) : null}
+                        {handledArgentina ? (
+                          <span className="messi-ref-wc-badge is-argentina" title="Referee for an Argentina match at the FIFA World Cup 2026">
+                            <Flag size={10} aria-hidden="true" /> ARG
+                          </span>
+                        ) : null}
+                      </span>
+                      <small>{row.country}</small>
+                    </th>
+                    <td className="messi-ref-country-col">{row.country}</td>
+                    <td className="messi-ref-gp">{row.games}</td>
+                    <td className="messi-ref-win">{row.wins}</td>
+                    <td className="messi-ref-loss">{row.losses}</td>
+                    <td>{row.draws}</td>
+                    <td className="messi-ref-rate-col">{percent(rate(row))}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {visibleRows.length === 0 ? (
@@ -255,6 +349,8 @@ export default function MessiRefStats() {
             {` ${new Date(sourceMeta.updatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC", year: "numeric" })}. `}
             GP is games played; W/L/D is Messi&apos;s team result. The source&apos;s duplicate entries
             for the same name and country are combined here, turning {sourceMeta.sourceRows} source rows into {records.length} unique referees.
+            {" "}World Cup markers use <a href={worldCup2026RefereeSource.url} target="_blank" rel="noreferrer">{worldCup2026RefereeSource.label}</a> and include its 52 appointed referees, excluding assistant and video-only officials.
+            {" "}Argentina markers are refreshed from <a href={argentinaWorldCupSourceUrl} target="_blank" rel="noreferrer">{argentinaWorldCup2026RefereeSource.label}</a> and include any assigned referee, whether or not Messi played.
           </p>
         </footer>
       </section>

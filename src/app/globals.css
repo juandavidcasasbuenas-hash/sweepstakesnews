@@ -9682,10 +9682,92 @@ body:has(.wr-page) {
 }
 
 .messi-ref-controls {
-  min-width: min(100%, 470px);
+  width: min(100%, 890px);
+  min-width: min(100%, 790px);
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(155px, 0.65fr);
+  grid-template-columns: auto auto minmax(210px, 1fr) minmax(155px, 0.65fr);
   gap: 0.55rem;
+}
+
+.messi-ref-wc-filter {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+  padding: 0 0.72rem;
+  border: 1px solid rgba(181, 130, 10, 0.55);
+  background: var(--gold-light);
+  color: #6f4c00;
+  font: 800 0.67rem var(--font-display), sans-serif;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease, transform 70ms ease;
+}
+
+.messi-ref-wc-filter:hover {
+  border-color: var(--gold);
+  background: rgba(181, 130, 10, 0.19);
+}
+
+.messi-ref-wc-filter:active {
+  transform: scale(0.98);
+}
+
+.messi-ref-wc-filter:focus-visible {
+  outline: 3px solid rgba(181, 130, 10, 0.28);
+  outline-offset: 2px;
+}
+
+.messi-ref-wc-filter.active {
+  border-color: #111;
+  background: #111;
+  color: #f2cd70;
+}
+
+.messi-ref-wc-filter strong {
+  min-width: 1.45rem;
+  padding: 0.16rem 0.3rem;
+  border-radius: 999px;
+  background: rgba(181, 130, 10, 0.18);
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.messi-ref-wc-filter.active strong {
+  background: #f2cd70;
+  color: #111;
+}
+
+.messi-ref-wc-filter.is-argentina {
+  border-color: rgba(47, 132, 169, 0.58);
+  background: rgba(116, 194, 225, 0.14);
+  color: #185a77;
+}
+
+.messi-ref-wc-filter.is-argentina:hover {
+  border-color: #2f84a9;
+  background: rgba(116, 194, 225, 0.24);
+}
+
+.messi-ref-wc-filter.is-argentina:focus-visible {
+  outline-color: rgba(47, 132, 169, 0.28);
+}
+
+.messi-ref-wc-filter.is-argentina.active {
+  border-color: #163c51;
+  background: #163c51;
+  color: #d5f2ff;
+}
+
+.messi-ref-wc-filter.is-argentina strong {
+  background: rgba(47, 132, 169, 0.16);
+}
+
+.messi-ref-wc-filter.is-argentina.active strong {
+  background: #d5f2ff;
+  color: #163c51;
 }
 
 .messi-ref-search {
@@ -9747,6 +9829,20 @@ body:has(.wr-page) {
 
 .messi-ref-result-count strong {
   color: var(--red);
+}
+
+.messi-ref-wc-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+  color: #765510;
+  letter-spacing: 0.07em;
+}
+
+.messi-ref-wc-legend > span {
+  margin-inline: 0.16rem;
+  color: var(--line-strong);
 }
 
 .messi-ref-table-wrap {
@@ -9845,6 +9941,7 @@ body:has(.wr-page) {
 
 .messi-ref-table tbody th strong {
   display: block;
+  min-width: 0;
   overflow: hidden;
   color: var(--fg);
   font-family: var(--font-display), sans-serif;
@@ -9853,6 +9950,33 @@ body:has(.wr-page) {
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.messi-ref-name-line {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.48rem;
+}
+
+.messi-ref-wc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex: 0 0 auto;
+  padding: 0.17rem 0.35rem;
+  border: 1px solid rgba(181, 130, 10, 0.55);
+  background: #fff4c7;
+  color: #6f4c00;
+  font: 800 0.53rem/1 var(--font-display), sans-serif;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.messi-ref-wc-badge.is-argentina {
+  border-color: rgba(47, 132, 169, 0.55);
+  background: #dff5ff;
+  color: #185a77;
 }
 
 .messi-ref-table tbody th small {
@@ -9874,6 +9998,30 @@ body:has(.wr-page) {
 
 .messi-ref-table tbody tr:hover {
   background: rgba(200, 0, 30, 0.055);
+}
+
+.messi-ref-table tbody tr.is-world-cup-ref {
+  background: linear-gradient(90deg, rgba(226, 190, 90, 0.2), rgba(255, 244, 199, 0.08) 52%, transparent);
+}
+
+.messi-ref-table tbody tr.is-world-cup-ref:hover {
+  background: linear-gradient(90deg, rgba(226, 190, 90, 0.3), rgba(255, 244, 199, 0.13) 52%, rgba(200, 0, 30, 0.035));
+}
+
+.messi-ref-table tbody tr.is-world-cup-ref th[scope="row"] {
+  box-shadow: inset 3px 0 #c69725;
+}
+
+.messi-ref-table tbody tr.is-argentina-wc-ref {
+  background: linear-gradient(90deg, rgba(116, 194, 225, 0.25), rgba(223, 245, 255, 0.14) 52%, transparent);
+}
+
+.messi-ref-table tbody tr.is-argentina-wc-ref:hover {
+  background: linear-gradient(90deg, rgba(116, 194, 225, 0.34), rgba(223, 245, 255, 0.2) 52%, rgba(200, 0, 30, 0.035));
+}
+
+.messi-ref-table tbody tr.is-argentina-wc-ref th[scope="row"] {
+  box-shadow: inset 3px 0 #2f84a9;
 }
 
 .messi-ref-table .messi-ref-gp {
@@ -9948,6 +10096,16 @@ body:has(.wr-page) {
   .tabs button.tab-subitem::before {
     display: none;
   }
+
+  .messi-ref-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .messi-ref-controls {
+    width: 100%;
+    min-width: 0;
+  }
 }
 
 @media (max-width: 780px) {
@@ -10013,6 +10171,12 @@ body:has(.wr-page) {
 
   .messi-ref-controls {
     min-width: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .messi-ref-search,
+  .messi-ref-country {
+    grid-column: 1 / -1;
   }
 
   .messi-ref-table {
@@ -10036,6 +10200,18 @@ body:has(.wr-page) {
 @media (max-width: 520px) {
   .messi-ref-controls {
     grid-template-columns: 1fr;
+  }
+
+  .messi-ref-country {
+    grid-column: auto;
+  }
+
+  .messi-ref-wc-filter {
+    width: 100%;
+  }
+
+  .messi-ref-wc-legend {
+    display: none;
   }
 
   .messi-ref-intro::after {
