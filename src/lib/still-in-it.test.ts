@@ -383,6 +383,71 @@ test("dead bonus picks cannot rescue a trailing player", async () => {
   );
 });
 
+test("hand-typed bonus spellings match the stats feed and group across entries", async () => {
+  const base = buildPicks(23);
+  const submissions = [
+    makeSubmission("A", structuredClone(base), {
+      topScorer: "Erling Haaland",
+      goldenBall: "Yamal",
+      mostGoalsTeam: "Alphaland",
+    }),
+    // Same top-scorer bet, typed as a bare surname.
+    makeSubmission("B", structuredClone(base), {
+      topScorer: "Haaland",
+      goldenBall: "Lamine Yamal",
+      mostGoalsTeam: "Alphaland",
+    }),
+  ];
+  const results = resultsFromPicks(base, [104]);
+
+  const statsFor = (team: string) => ({
+    scorers: [
+      { player: "Erling Haaland", team, goals: 7, assists: 0, penaltyGoals: 0, matches: [] },
+      { player: "Golden Leader", team: "Elsewhere", goals: 9, assists: 0, penaltyGoals: 0, matches: [] },
+    ],
+    assists: [],
+    matchStats: {},
+    updatedAt: new Date().toISOString(),
+  });
+
+  const finalTeams = resolveFixtures(results.matches).find((item) => item.id === 104)!;
+  const alive = await crunchStillInIt(
+    submissions,
+    { ...results, playerStats: statsFor(finalTeams.resolvedTeam1) },
+    { yieldEvery: 0 },
+  );
+  assert.equal(alive.mode, "ready");
+  if (alive.mode !== "ready") return;
+  for (const player of alive.players) {
+    assert.ok(
+      !player.deadBonuses.some((item) => item.category === "topScorer"),
+      `${player.name}: living bet must not be flagged dead`,
+    );
+    // Both spellings name the same person, so each dream lists the other
+    // entry as a sharer of the top-scorer bet.
+    const bestBonus = player.dream.bonuses.find((item) => item.category === "topScorer")!;
+    assert.equal(bestBonus.sharers.length, 1, `${player.name}: sharer across spellings`);
+  }
+
+  const dead = await crunchStillInIt(
+    submissions,
+    { ...results, playerStats: statsFor("Eliminated FC") },
+    { yieldEvery: 0 },
+  );
+  assert.equal(dead.mode, "ready");
+  if (dead.mode !== "ready") return;
+  for (const player of dead.players) {
+    assert.ok(
+      player.deadBonuses.some((item) => item.category === "topScorer"),
+      `${player.name}: eliminated-and-trailing bet flagged dead for both spellings`,
+    );
+    assert.ok(
+      !player.dream.bonuses.some((item) => item.category === "topScorer"),
+      `${player.name}: dead bet must not pay out in the dream scenario`,
+    );
+  }
+});
+
 test("group stage still running reports not-ready", async () => {
   const base = buildPicks(5);
   const groupIds = fixtures.filter((item) => item.stage === "group").map((item) => item.id);

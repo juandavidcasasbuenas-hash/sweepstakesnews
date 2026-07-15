@@ -15,6 +15,10 @@
 // the same results hand to their rivals.
 
 import { fixtures } from "@/data/fixtures";
+import {
+  canonicalizePlayerNames,
+  normalizePlayerName,
+} from "@/lib/player-names";
 import { canonicalTeamName } from "@/lib/team-flags";
 import {
   resolveFixtures,
@@ -460,6 +464,38 @@ export async function crunchStillInIt(
   const scorers = results.playerStats?.scorers ?? [];
   const maxScorerGoals = Math.max(0, ...scorers.map((row) => row.goals));
 
+  // Bonus picks are typed by hand, so "Haaland" and the feed's "Erling
+  // Haaland" are the same person. Resolve every player-name pick and stat row
+  // to a shared canonical key before asking whether a bet can still land or
+  // whether two entries actually back the same pick.
+  const statNames = [...scorers, ...(results.playerStats?.assists ?? [])].map(
+    (row) => row.player,
+  );
+  const playerNameAliases = canonicalizePlayerNames(
+    players
+      .flatMap((player) => [player.bonusPicks.topScorer, player.bonusPicks.goldenBall])
+      .filter(Boolean),
+    statNames,
+  );
+  function personKey(value: string) {
+    const normalized = normalizePlayerName(value);
+    if (!normalized) return "";
+    return normalizePlayerName(playerNameAliases.get(normalized) ?? value);
+  }
+  const scorerRowByPerson = new Map<string, (typeof scorers)[number]>();
+  for (const row of scorers) {
+    const rowKey = personKey(row.player);
+    const existing = scorerRowByPerson.get(rowKey);
+    if (!existing || row.goals > existing.goals) scorerRowByPerson.set(rowKey, row);
+  }
+
+  function bonusPickKey(category: ScenarioBonusEvent["category"], value: string) {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    if (category === "mostGoalsTeam") return key(trimmed);
+    return personKey(trimmed);
+  }
+
   function bonusStillPossible(category: ScenarioBonusEvent["category"], value: string) {
     const trimmed = value.trim();
     if (!trimmed) return false;
@@ -472,14 +508,11 @@ export async function crunchStillInIt(
     // topScorer: dead only when we know the player's team is out AND they
     // already trail the golden-boot leader. Without stats data, stay lenient.
     if (!scorers.length) return true;
-    const row = scorers.find(
-      (item) => item.player.trim().toLowerCase() === trimmed.toLowerCase(),
-    );
-    const goals = row?.goals ?? 0;
-    const rowTeam = row?.team ? key(row.team) : "";
-    if (rowTeam && aliveTeams.has(rowTeam)) return true;
-    if (!rowTeam && !row) return true; // unknown player — cannot rule out
-    return goals >= maxScorerGoals;
+    const row = scorerRowByPerson.get(personKey(trimmed));
+    if (!row) return true; // unknown player — cannot rule out
+    const rowTeam = row.team ? key(row.team) : "";
+    if (!rowTeam || aliveTeams.has(rowTeam)) return true;
+    return row.goals >= maxScorerGoals;
   }
 
   // A bonus category still in play is one the admin has not settled yet.
@@ -513,10 +546,11 @@ export async function crunchStillInIt(
       }
       if (!open) return;
 
+      const ownKey = bonusPickKey(category, ownPick);
       if (ownPossible) {
         const sharers: string[] = [];
         players.forEach((other, r) => {
-          if (other.bonusPicks[category].toLowerCase() === ownPick.toLowerCase()) {
+          if (bonusPickKey(category, other.bonusPicks[category]) === ownKey) {
             bonusBestVec[x][r] += points;
             if (r !== x) sharers.push(other.name);
           }
@@ -528,11 +562,13 @@ export async function crunchStillInIt(
       const tally = new Map<string, { value: string; indexes: number[] }>();
       players.forEach((other, r) => {
         const pick = other.bonusPicks[category];
-        if (!pick || pick.toLowerCase() === ownPick.toLowerCase()) return;
+        if (!pick) return;
+        const pickKey = bonusPickKey(category, pick);
+        if (pickKey === ownKey) return;
         if (!bonusStillPossible(category, pick)) return;
-        const bucket = tally.get(pick.toLowerCase()) ?? { value: pick, indexes: [] };
+        const bucket = tally.get(pickKey) ?? { value: pick, indexes: [] };
         bucket.indexes.push(r);
-        tally.set(pick.toLowerCase(), bucket);
+        tally.set(pickKey, bucket);
       });
       let adversarial: { value: string; indexes: number[] } | null = null;
       for (const bucket of tally.values()) {
